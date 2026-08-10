@@ -1,7 +1,7 @@
 {
   "name": "java-learn-ide",
   "productName": "Java 学习 IDE",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "面向大学 Java 初学者的轻量级学习 IDE（Electron + Monaco + JDK javac）",
   "main": "main.js",
   "scripts": {

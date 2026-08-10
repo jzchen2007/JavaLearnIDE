@@ -21,6 +21,8 @@ try {
 // ---------- 状态 ----------
 let mainWin = null;
 let termWin = null;
+let petWin = null;
+let quitting = false;
 let projectRoot = null;
 let currentFile = null;
 let runProc = null;
@@ -32,7 +34,10 @@ let settings = {
   fontFamily: "'JetBrains Mono', Consolas, 'Courier New', monospace",
   windowBounds: { width: 1280, height: 800 },
   recentFiles: [],
-  showDictByDefault: true
+  showDictByDefault: true,
+  aiBaseUrl: '',
+  aiApiKey: '',
+  aiModel: 'Qwen/Qwen2.5-7B-Instruct'
 };
 let stats = null;
 let settingsTimer = null, statsTimer = null;
@@ -281,6 +286,93 @@ function revealErrors(errors) {
   mainWin.webContents.send('compile:result', { errors });
 }
 
+// ---------- 桌宠（菲比） ----------
+function togglePet() {
+  if (petWin && !petWin.isDestroyed()) {
+    if (petWin.isVisible()) petWin.hide();
+    else { petWin.show(); petWin.focus(); }
+    return;
+  }
+  petWin = new BrowserWindow({
+    width: 250, height: 320,
+    frame: false, transparent: true, alwaysOnTop: true,
+    resizable: false, skipTaskbar: true, hasShadow: false,
+    webPreferences: { preload: path.join(APP_ROOT, 'preload-pet.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+  });
+  petWin.setAlwaysOnTop(true, 'screen-saver');
+  petWin.loadURL('app://ide/pet.html');
+  petWin.webContents.on('console-message', (event) => {
+    const { level, message, lineNumber, sourceId } = event;
+    console.log(`[pet:${level}]`, message, `(${sourceId}:${lineNumber})`);
+  });
+  petWin.on('close', (e) => { if (!quitting) { e.preventDefault(); petWin.hide(); } }); // 点关闭=隐藏
+  petWin.on('closed', () => { petWin = null; });
+}
+
+// 获取编辑器当前内容（实时，而非磁盘旧版本）
+async function getCurrentSource() {
+  if (!mainWin || mainWin.isDestroyed()) return '';
+  try {
+    return await mainWin.webContents.executeJavaScript('window.EditorMod && window.EditorMod.getValue ? EditorMod.getValue() : ""');
+  } catch { return ''; }
+}
+
+// AI 检查代码（OpenAI 兼容接口：在线服务或本地 Ollama；未配置时离线 javac 兜底）
+async function aiCheckCode(code, fileName) {
+  const base = (settings.aiBaseUrl || '').trim();
+  const key = (settings.aiApiKey || '').trim();
+  const model = (settings.aiModel || 'Qwen/Qwen2.5-7B-Instruct').trim();
+  const name = fileName ? fileName.split(/[\\/]/).pop() : 'Main.java';
+  const prompt = `你是"菲比"，一位友善的 Java 编程助教。请检查这个 Java 文件（${name}）的代码，指出：1. 语法/逻辑错误 2. 常见易错点 3. 改进建议。用中文分点回答，简洁明了，最多 6 条，不要贴整段代码。\n\n\`\`\`java\n${code.slice(0, 6000)}\n\`\`\``;
+  if (base && key) {
+    try {
+      const resp = await net.fetch(base.replace(/\/+$/, '') + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.3, max_tokens: 600 }),
+        signal: AbortSignal.timeout(45000)
+      });
+      if (!resp.ok) return { ok: false, text: 'AI 接口请求失败（HTTP ' + resp.status + '），请检查设置里的接口地址与密钥。' };
+      const data = await resp.json();
+      const text = ((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '').trim();
+      return text ? { ok: true, text } : { ok: false, text: 'AI 返回为空，请稍后重试。' };
+    } catch (e) {
+      return { ok: false, text: 'AI 调用出错：' + e.message };
+    }
+  }
+  // 离线兜底：javac 检查 + 基础统计
+  let offline = '';
+  if (code.trim()) offline += `已检查 ${name}（${code.split('\n').length} 行）。`;
+  else offline += '编辑器里还没有代码哦，先写点 Java 吧～';
+  if (currentFile) {
+    const res = await compileFor(currentFile);
+    if (res.ok) offline += ' javac 编译通过 ✓。';
+    else offline += ' javac 发现 ' + res.errors.length + ' 个错误：' + res.errors.slice(0, 3).map((e) => `${e.line}行 ${e.zh}`).join('；') + '。';
+  }
+  offline += '（当前为离线检查，在 设置→AI 检查 填写接口后可启用智能检查）';
+  return { ok: true, text: offline };
+}
+
+async function handlePetAction(action) {
+  const src = await getCurrentSource();
+  switch (action) {
+    case 'check': return await aiCheckCode(src, currentFile);
+    case 'compile': {
+      if (!currentFile) return { ok: false, text: '还没有打开文件哦～先打开一个 Java 文件吧' };
+      stats.compiles++; persistStats();
+      const res = await compileFor(currentFile);
+      if (res.ok) return { ok: true, text: '编译成功 ✓' };
+      return { ok: false, text: '编译失败：' + res.errors.length + ' 个错误。' + res.errors.slice(0, 3).map((e) => `${e.line}行 ${e.zh}`).join('；') + '（详情见问题面板）' };
+    }
+    case 'run': {
+      if (!currentFile) return { ok: false, text: '还没有打开文件哦～先打开一个 Java 文件吧' };
+      const res = await handleRun(currentFile);
+      return res.ok ? { ok: true, text: '已开始运行，请看终端窗口～' } : { ok: false, text: '编译失败，请查看问题面板～' };
+    }
+    default: return { ok: false, text: '未知指令' };
+  }
+}
+
 // ---------- 终端窗口 ----------
 let termReady = false;
 let termQueue = [];
@@ -435,6 +527,24 @@ function createMainWindow() {
               }
             }
           } catch (e) { info.termError = e.message; }
+          // 桌宠测试：创建窗口、加载、离线检查
+          try {
+            togglePet();
+            await new Promise((r) => setTimeout(r, 2500));
+            info.petWinCreated = !!(petWin && !petWin.isDestroyed());
+            if (petWin && !petWin.isDestroyed()) {
+              info.petUiLoaded = await petWin.webContents.executeJavaScript('!!document.querySelector("#pet .pet-svg")');
+              const pc = await handlePetAction('check');
+              info.petCheckOk = pc.ok;
+              info.petCheckText = (pc.text || '').slice(0, 150);
+            }
+            togglePet(); // 隐藏
+          } catch (e) { info.petError = e.message; }
+          // 最终结果落盘（包含终端与桌宠测试）
+          console.log('[verify-final] ' + JSON.stringify(info));
+          if (process.env.VERIFY_JSON) {
+            try { fs.writeFileSync(process.env.VERIFY_JSON, JSON.stringify(info, null, 2)); } catch (e) { console.error('[verify] 写文件失败:', e.message); }
+          }
         } catch (e) { console.error('[verify] failed:', e.message); }
         app.exit(0);
       }, 6000);
@@ -488,6 +598,7 @@ function buildMenu() {
       label: '视图',
       submenu: [
         { label: '切换侧边栏（文件/词典）', accelerator: 'CmdOrCtrl+B', click: send('toggleSidebar') },
+        { label: '显示/隐藏桌宠（菲比）', accelerator: 'CmdOrCtrl+Alt+P', click: send('togglePet') },
         { label: '切换深浅主题', click: send('toggleTheme') },
         { label: '设置…', click: send('settings') }
       ]
@@ -584,6 +695,9 @@ function registerIpc() {
   });
   ipcMain.on('term:clear', () => sendToTerm('term:data', { data: '\x1b[2J\x1b[H' }));
   ipcMain.on('term:show', () => ensureTermWin());
+  ipcMain.on('pet:toggle', () => togglePet());
+  ipcMain.handle('pet:action', async (_e, action) => handlePetAction(action));
+  ipcMain.on('pet:hide', () => { if (petWin && !petWin.isDestroyed()) petWin.hide(); });
   ipcMain.on('term:openError', (_e, { file, line }) => {
     if (mainWin) mainWin.webContents.send('editor:revealLine', { file, line });
     if (mainWin) { mainWin.show(); mainWin.focus(); }
@@ -654,6 +768,7 @@ app.on('window-all-closed', () => {
 
 // 退出前清理：终止仍在运行的 java 进程
 app.on('before-quit', () => {
+  quitting = true;
   try { if (runProc) runProc.kill(); } catch {}
 });
 

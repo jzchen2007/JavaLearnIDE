@@ -15,6 +15,7 @@
       <button class="activity-btn active" id="act-explorer" title="资源管理器 (Ctrl+Shift+E)">📁</button>
       <button class="activity-btn" id="act-dict" title="关键字词典 (Ctrl+Shift+D)">📖</button>
       <div class="activity-spacer"></div>
+      <button class="activity-btn" id="act-pet" title="桌宠 菲比 (Ctrl+Alt+P)">🐾</button>
       <button class="activity-btn" id="act-settings" title="设置">⚙️</button>
     </div>
 
@@ -155,6 +156,19 @@
           <label>JDK 状态</label>
           <span id="jdk-status">检测中…</span>
         </div>
+        <div class="setting-row"><label></label><span style="color:var(--text-dim);font-size:11px">— AI 检查（桌宠·菲比）—</span></div>
+        <div class="setting-row">
+          <label>AI 接口地址</label>
+          <input id="set-aiurl" type="text" placeholder="留空=离线检查；如 https://api.siliconflow.cn/v1 或 http://127.0.0.1:11434/v1 (Ollama)">
+        </div>
+        <div class="setting-row">
+          <label>API 密钥</label>
+          <input id="set-aikey" type="password" placeholder="在线服务需要；Ollama 可留空">
+        </div>
+        <div class="setting-row">
+          <label>模型名</label>
+          <input id="set-aimodel" type="text" placeholder="如 Qwen/Qwen2.5-7B-Instruct">
+        </div>
       </div>
     </div>
   </div>
@@ -165,7 +179,7 @@
       <div class="modal-head"><span>关于</span><button class="modal-close" data-close>✕</button></div>
       <div class="modal-body about-body">
         <div class="welcome-logo">☕</div>
-        <h2>Java 学习 IDE <span class="ver">v1.0.0</span></h2>
+        <h2>Java 学习 IDE <span class="ver">v1.1.0</span></h2>
         <p>面向大学 Java 初学者的轻量级开发环境，基于 Electron + Monaco Editor + JDK javac 构建。</p>
         <p>功能：一键编译运行（外部独立终端）、关键字中文词典、Tab 自动补全、实时错误波浪线、编译错误中文化、代码统计。</p>
       </div>

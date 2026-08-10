@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   run: (p) => ipcRenderer.invoke('run', p),
   stopRun: () => ipcRenderer.invoke('term:stop'),
   showTerminal: () => ipcRenderer.send('term:show'),
+  togglePet: () => ipcRenderer.send('pet:toggle'),
   // 统计与设置
   addStats: (n) => ipcRenderer.send('stats:add', n),
   getSettings: () => ipcRenderer.invoke('settings:get'),

@@ -293,6 +293,7 @@
     // 活动栏
     $('act-explorer').addEventListener('click', () => switchView('explorer'));
     $('act-dict').addEventListener('click', () => switchView('dict'));
+    $('act-pet').addEventListener('click', () => api.togglePet());
     $('act-settings').addEventListener('click', () => openSettings());
     // 文件
     $('btn-newfile').addEventListener('click', async () => {
@@ -331,6 +332,9 @@
     $('set-fontsize').addEventListener('change', (e) => api.setSettings({ fontSize: parseInt(e.target.value, 10) || 14 }));
     $('set-font').addEventListener('change', (e) => api.setSettings({ fontFamily: e.target.value }));
     $('set-jdk').addEventListener('change', (e) => api.setSettings({ jdkHome: e.target.value.trim() || null }));
+    $('set-aiurl').addEventListener('change', (e) => api.setSettings({ aiBaseUrl: e.target.value.trim() }));
+    $('set-aikey').addEventListener('change', (e) => api.setSettings({ aiApiKey: e.target.value.trim() }));
+    $('set-aimodel').addEventListener('change', (e) => api.setSettings({ aiModel: e.target.value.trim() }));
     $('btn-jdk-browse').addEventListener('click', async () => {
       // 通过主进程对话框选择目录（复用 openFolderDialog 逻辑扩展：这里用系统对话框）
       const r = await window.api.openFolderDialog();
@@ -394,6 +398,7 @@
       case 'toggleTheme':
         api.setSettings({ theme: settings.theme === 'vs' ? 'vs-dark' : 'vs' });
         break;
+      case 'togglePet': api.togglePet(); break;
       case 'settings': openSettings(); break;
       case 'shortcuts': openModal('modal-shortcuts'); break;
       case 'revealInExplorer':
@@ -413,6 +418,9 @@
     $('set-fontsize').value = settings.fontSize || 14;
     $('set-font').value = settings.fontFamily || "Consolas, 'Courier New', monospace";
     $('set-jdk').value = settings.jdkHome || '';
+    $('set-aiurl').value = settings.aiBaseUrl || '';
+    $('set-aikey').value = settings.aiApiKey || '';
+    $('set-aimodel').value = settings.aiModel || '';
     openModal('modal-settings');
     updateJavaStatus();
   }
