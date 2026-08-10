@@ -1,18 +1,31 @@
 'use strict';
-// ============ 菲比桌宠 ============
+// ============ 菲比桌宠 (GIF 动画版) ============
 (function () {
   const petApi = window.petApi;
   const pet = document.getElementById('pet');
+  const petImg = document.getElementById('pet-img');
   const bubble = document.getElementById('bubble');
   const bubbleText = document.getElementById('bubble-text');
   const bubbleState = document.getElementById('bubble-state');
   const menu = document.getElementById('menu');
   let busy = false;
 
+  // 状态 ↔ GIF 映射
+  const stateMap = {
+    idle:     { gif: 'idle.gif',     label: '待机' },
+    working:  { gif: 'running.gif',  label: '敲代码中…' },
+    thinking: { gif: 'waiting.gif',  label: '思考中…' },
+    happy:    { gif: 'review.gif',   label: '完成啦～' },
+    sad:      { gif: 'failed.gif',   label: '遇到问题…' }
+  };
+
   function setState(s) {
     pet.className = s;
-    const names = { idle: '待机', working: '敲代码中…', happy: '完成啦～', sad: '遇到问题…', thinking: '思考中…' };
-    bubbleState.textContent = names[s] || s;
+    const info = stateMap[s];
+    if (info) {
+      petImg.src = 'pet/' + info.gif;
+      bubbleState.textContent = info.label;
+    }
   }
 
   function say(text, state) {
@@ -44,8 +57,8 @@
     const r = await petApi.action(act);
     busy = false;
     if (r && r.ok) {
-      setState(act === 'check' ? 'happy' : 'happy');
-      say(r.text || '搞定～', act === 'check' ? 'happy' : 'happy');
+      setState('happy');
+      say(r.text || '搞定～', 'happy');
     } else {
       setState('sad');
       say((r && r.text) || '出错了…', 'sad');

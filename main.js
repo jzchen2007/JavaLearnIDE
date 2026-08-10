@@ -533,7 +533,7 @@ function createMainWindow() {
             await new Promise((r) => setTimeout(r, 2500));
             info.petWinCreated = !!(petWin && !petWin.isDestroyed());
             if (petWin && !petWin.isDestroyed()) {
-              info.petUiLoaded = await petWin.webContents.executeJavaScript('!!document.querySelector("#pet .pet-svg")');
+              info.petUiLoaded = await petWin.webContents.executeJavaScript('!!document.querySelector("#pet img") && !!document.getElementById("pet-img").src');
               const pc = await handlePetAction('check');
               info.petCheckOk = pc.ok;
               info.petCheckText = (pc.text || '').slice(0, 150);

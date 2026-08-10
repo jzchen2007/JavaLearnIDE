@@ -10,37 +10,17 @@ html, body {
 
 #pet {
   position: absolute;
-  left: 50%; bottom: 6px;
+  left: 50%; bottom: 2px;
   transform: translateX(-50%);
-  width: 190px; height: 210px;
+  width: 160px; height: 180px;
   cursor: pointer;
   -webkit-app-region: drag; /* 整个桌宠可拖动 */
 }
-#pet .pet-svg { width: 100%; height: 100%; overflow: visible; }
-
-/* 动画状态 */
-@keyframes idle-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-@keyframes working-wiggle { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
-@keyframes happy-jump { 0%,100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-18px) scale(1.05); } 60% { transform: translateY(0) scale(0.97); } }
-@keyframes sad-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
-@keyframes blink { 0%,92%,100% { transform: scaleY(1); } 95% { transform: scaleY(0.08); } }
-@keyframes tip-glow { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
-@keyframes thinking-dot { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
-
-#pet.idle { animation: idle-bob 2.6s ease-in-out infinite; }
-#pet.working { animation: working-wiggle 0.5s ease-in-out infinite; }
-#pet.happy { animation: happy-jump 0.8s ease-in-out 2; }
-#pet.sad { animation: sad-shake 0.4s ease-in-out 3; }
-#pet.thinking { animation: idle-bob 1.6s ease-in-out infinite; }
-
-.eyes { transform-origin: center; animation: blink 4s infinite; }
-.antenna-tip { animation: tip-glow 3s ease-in-out infinite; }
-
-.hidden-prop { display: none; }
-#pet.working .sweat { display: block; }
-#pet.happy .sparkle { display: block; }
-#pet.sad .tear { display: block; }
-#pet.thinking .eyes { transform: translateY(-3px); }
+#pet img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  image-rendering: auto;
+}
 
 /* 台词气泡 */
 #bubble {
@@ -88,7 +68,7 @@ html, body {
 /* 功能菜单 */
 #menu {
   position: absolute;
-  top: 150px; right: 8px;
+  top: 140px; right: 8px;
   width: 150px;
   background: rgba(38, 30, 52, 0.95);
   border: 1px solid #cfb8ec;
