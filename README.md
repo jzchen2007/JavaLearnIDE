@@ -2,6 +2,8 @@
 
 面向大学 Java 初学者的轻量级开发环境。基于 **Electron + Monaco Editor（VS Code 同款编辑器内核）+ JDK javac** 构建，界面风格参考 Visual Studio Code，力求简洁美观。
 
+📦 GitHub：<https://github.com/jzchen2007/JavaLearnIDE>
+
 ## ✨ 功能特性
 
 1. **一键编译 + 外部独立终端窗口**
