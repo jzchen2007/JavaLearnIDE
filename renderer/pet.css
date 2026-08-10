@@ -10,16 +10,17 @@ html, body {
 
 #pet {
   position: absolute;
-  left: 50%; bottom: 2px;
+  left: 50%; bottom: 5px;
   transform: translateX(-50%);
-  width: 160px; height: 180px;
-  cursor: pointer;
-  -webkit-app-region: drag; /* 整个桌宠可拖动 */
+  width: 200px; height: 215px;
+  cursor: grab;
 }
+#pet:active { cursor: grabbing; }
 #pet img {
   width: 100%; height: 100%;
   object-fit: contain;
   image-rendering: auto;
+  pointer-events: none; /* 鼠标判定统一交给 #pet，GIF 透明区不干扰 */
 }
 
 /* 台词气泡 */
@@ -29,12 +30,12 @@ html, body {
   background: rgba(38, 30, 52, 0.92);
   border: 1px solid #cfb8ec;
   border-radius: 12px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   color: #efe6ff;
-  font-size: 12px;
+  font-size: 11px;
   box-shadow: 0 4px 18px rgba(0,0,0,.35);
   display: flex; flex-direction: column;
-  max-height: 170px;
+  max-height: 100px;
 }
 #bubble::after {
   content: ""; position: absolute;
@@ -46,21 +47,19 @@ html, body {
 }
 .bubble-head {
   display: flex; align-items: center; gap: 6px;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
-.bubble-name { font-weight: 600; color: #e0c9ff; font-size: 12px; }
+.bubble-name { font-weight: 600; color: #e0c9ff; font-size: 11px; }
 .bubble-state { font-size: 10px; color: #b9a0dd; background: rgba(185,160,221,.18); padding: 1px 7px; border-radius: 8px; }
 .bubble-spacer { flex: 1; }
 #bubble-close {
   background: transparent; border: none; color: #b9a0dd;
   cursor: pointer; font-size: 11px;
-  -webkit-app-region: no-drag;
 }
 #bubble-close:hover { color: #fff; }
 #bubble-text {
-  overflow-y: auto; white-space: pre-wrap; line-height: 1.6;
+  overflow-y: auto; white-space: pre-wrap; line-height: 1.55;
   word-break: break-word;
-  -webkit-app-region: no-drag;
 }
 #bubble-text::-webkit-scrollbar { width: 6px; }
 #bubble-text::-webkit-scrollbar-thumb { background: #6a5a8c; border-radius: 3px; }
@@ -68,7 +67,7 @@ html, body {
 /* 功能菜单 */
 #menu {
   position: absolute;
-  top: 140px; right: 8px;
+  top: 115px; right: 5px;
   width: 150px;
   background: rgba(38, 30, 52, 0.95);
   border: 1px solid #cfb8ec;
@@ -83,7 +82,6 @@ html, body {
   color: #efe6ff; text-align: left;
   font-size: 12.5px; padding: 8px 10px;
   border-radius: 6px; cursor: pointer;
-  -webkit-app-region: no-drag;
 }
 .menu-item:hover { background: rgba(207,184,236,.2); }
 .menu-sep { height: 1px; background: rgba(207,184,236,.25); margin: 4px 6px; }

@@ -9,6 +9,8 @@
   const bubbleState = document.getElementById('bubble-state');
   const menu = document.getElementById('menu');
   let busy = false;
+  let interactive = true;  // 窗口当前是否拦截鼠标事件
+  let dragState = null;    // { sx, sy, wx, wy, moved }
 
   // 状态 ↔ GIF 映射
   const stateMap = {
@@ -36,6 +38,19 @@
   }
 
   function hideBubble() { bubble.classList.add('hidden'); }
+  function toggleMenu() { hideBubble(); menu.classList.toggle('hidden'); }
+
+  // 透明区域点击穿透：悬停菲比/气泡/菜单 → 拦截鼠标；透明区 → 穿透到桌面
+  function setInteractive(v) {
+    v = !!v;
+    if (v === interactive) return;
+    interactive = v;
+    petApi.setInteractive(v);
+  }
+  function updateInteractive(e) {
+    const over = !!(e.target && e.target.closest && e.target.closest('#pet, #bubble, #menu'));
+    setInteractive(over);
+  }
 
   async function doAction(act) {
     if (busy) return;
@@ -65,24 +80,37 @@
     }
   }
 
-  // 点击菲比 → 切换菜单
-  pet.addEventListener('click', () => {
-    if (busy) return;
-    hideBubble();
-    menu.classList.toggle('hidden');
+  // ---- 拖动与点击（手动实现，取代 -webkit-app-region，避免吞掉点击事件）----
+  pet.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    dragState = { sx: e.screenX, sy: e.screenY, wx: window.screenX, wy: window.screenY, moved: false };
+    setInteractive(true); // 拖动期间必须拦截鼠标事件
   });
-
-  // 点击空白处关闭菜单
-  document.addEventListener('click', (e) => {
-    if (!menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== pet) {
-      menu.classList.add('hidden');
+  document.addEventListener('mousemove', (e) => {
+    if (dragState) {
+      const dx = e.screenX - dragState.sx;
+      const dy = e.screenY - dragState.sy;
+      if (!dragState.moved && Math.abs(dx) + Math.abs(dy) > 4) dragState.moved = true; // 位移阈值：区分点击与拖动
+      if (dragState.moved) petApi.moveTo(dragState.wx + dx, dragState.wy + dy);       // 主进程会钳制在屏幕工作区内
+    } else {
+      updateInteractive(e);
     }
   });
+  document.addEventListener('mouseup', (e) => {
+    if (dragState) {
+      const wasDrag = dragState.moved;
+      dragState = null;
+      if (!wasDrag && !busy) toggleMenu(); // 点击（未拖动）→ 弹出菜单
+      updateInteractive(e);                // 释放后按光标位置恢复穿透/交互
+    }
+  });
+
+  // 右键也打开菜单（备用入口）
+  pet.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleMenu(); });
 
   menu.querySelectorAll('.menu-item').forEach((btn) => {
     btn.addEventListener('click', () => doAction(btn.dataset.act));
   });
-
   document.getElementById('bubble-close').addEventListener('click', hideBubble);
 
   // 开场白

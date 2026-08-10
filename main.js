@@ -1,6 +1,6 @@
 'use strict';
 // ============ Java 学习 IDE - 主进程 ============
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol, net, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -22,6 +22,7 @@ try {
 let mainWin = null;
 let termWin = null;
 let petWin = null;
+let petIgnore = true; // 桌宠窗口当前是否忽略鼠标事件（穿透）
 let quitting = false;
 let projectRoot = null;
 let currentFile = null;
@@ -294,7 +295,7 @@ function togglePet() {
     return;
   }
   petWin = new BrowserWindow({
-    width: 250, height: 320,
+    width: 210, height: 330,
     frame: false, transparent: true, alwaysOnTop: true,
     resizable: false, skipTaskbar: true, hasShadow: false,
     webPreferences: { preload: path.join(APP_ROOT, 'preload-pet.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -304,6 +305,10 @@ function togglePet() {
   petWin.webContents.on('console-message', (event) => {
     const { level, message, lineNumber, sourceId } = event;
     console.log(`[pet:${level}]`, message, `(${sourceId}:${lineNumber})`);
+  });
+  // 默认透明区域点击穿透；渲染进程在鼠标悬停菲比/气泡/菜单时动态接管
+  petWin.webContents.once('did-finish-load', () => {
+    petWin.setIgnoreMouseEvents(true, { forward: true });
   });
   petWin.on('close', (e) => { if (!quitting) { e.preventDefault(); petWin.hide(); } }); // 点关闭=隐藏
   petWin.on('closed', () => { petWin = null; });
@@ -423,6 +428,8 @@ function createMainWindow() {
   });
   ipcMain.on('app:readyToClose', () => {
     allowClose = true;
+    // 主窗口关闭 = 退出应用：桌宠一并销毁，避免残留
+    if (petWin && !petWin.isDestroyed()) petWin.destroy();
     if (mainWin && !mainWin.isDestroyed()) mainWin.close();
   });
   // 调试：设置 SHOT_PATH 时自动截图并退出（用于无头验证界面）
@@ -534,6 +541,28 @@ function createMainWindow() {
             info.petWinCreated = !!(petWin && !petWin.isDestroyed());
             if (petWin && !petWin.isDestroyed()) {
               info.petUiLoaded = await petWin.webContents.executeJavaScript('!!document.querySelector("#pet img") && !!document.getElementById("pet-img").src');
+              // 1) 点击菲比 → 弹出菜单（修复“点击没反应”）
+              info.petMenuWorks = await petWin.webContents.executeJavaScript(`(async () => {
+                const pet = document.getElementById('pet');
+                pet.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, screenX: 100, screenY: 100 }));
+                pet.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, screenX: 100, screenY: 100 }));
+                await new Promise(r => setTimeout(r, 120));
+                return !document.getElementById('menu').classList.contains('hidden');
+              })()`);
+              // 2) 点击穿透：悬停菲比 → 交互；悬停透明区 → 穿透
+              await petWin.webContents.executeJavaScript('window.petApi.setInteractive(true)');
+              await new Promise((r) => setTimeout(r, 250));
+              info.petInteractive = !petIgnore;
+              await petWin.webContents.executeJavaScript('window.petApi.setInteractive(false)');
+              await new Promise((r) => setTimeout(r, 250));
+              info.petClickThrough = petIgnore;
+              // 3) 拖动边界钳制：拖到屏幕外 → 自动拉回工作区
+              await petWin.webContents.executeJavaScript('window.petApi.moveTo(-500, -500)');
+              await new Promise((r) => setTimeout(r, 250));
+              const pos = petWin.getPosition();
+              const wa = screen.getDisplayMatching(petWin.getBounds()).workArea;
+              info.petClampOk = pos[0] >= wa.x && pos[1] >= wa.y;
+              info.petPos = pos;
               const pc = await handlePetAction('check');
               info.petCheckOk = pc.ok;
               info.petCheckText = (pc.text || '').slice(0, 150);
@@ -554,7 +583,11 @@ function createMainWindow() {
     if (!mainWin.isMaximized()) settings.windowBounds = mainWin.getBounds();
     persistSettings();
   });
-  mainWin.on('closed', () => { mainWin = null; });
+  mainWin.on('closed', () => {
+    mainWin = null;
+    // 保险：主窗口没了，桌宠也销毁（防止 window-all-closed 不触发导致残留）
+    if (petWin && !petWin.isDestroyed()) petWin.destroy();
+  });
   // 渲染进程日志转发（调试用）
   mainWin.webContents.on('console-message', (event) => {
     const { level, message, lineNumber, sourceId } = event;
@@ -698,6 +731,18 @@ function registerIpc() {
   ipcMain.on('pet:toggle', () => togglePet());
   ipcMain.handle('pet:action', async (_e, action) => handlePetAction(action));
   ipcMain.on('pet:hide', () => { if (petWin && !petWin.isDestroyed()) petWin.hide(); });
+  ipcMain.on('pet:setInteractive', (_e, val) => {
+    petIgnore = !val;
+    if (petWin && !petWin.isDestroyed()) petWin.setIgnoreMouseEvents(petIgnore, { forward: true });
+  });
+  ipcMain.on('pet:moveTo', (_e, { x, y }) => {
+    if (!petWin || petWin.isDestroyed()) return;
+    const b = petWin.getBounds();
+    const wa = screen.getDisplayMatching(b).workArea;
+    const cx = Math.round(Math.min(Math.max(x, wa.x), wa.x + wa.width - b.width));
+    const cy = Math.round(Math.min(Math.max(y, wa.y), wa.y + wa.height - b.height));
+    petWin.setPosition(cx, cy);
+  });
   ipcMain.on('term:openError', (_e, { file, line }) => {
     if (mainWin) mainWin.webContents.send('editor:revealLine', { file, line });
     if (mainWin) { mainWin.show(); mainWin.focus(); }
