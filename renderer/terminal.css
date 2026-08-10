@@ -1,0 +1,24 @@
+/* 终端窗口样式 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; background: #1e1e1e; }
+body { display: flex; flex-direction: column; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; }
+
+#toolbar {
+  display: flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 10px;
+  background: #333333; color: #cccccc;
+  border-bottom: 1px solid #222; flex-shrink: 0;
+  -webkit-app-region: no-drag; user-select: none;
+}
+.tb-title { font-size: 12px; color: #e8e8e8; }
+.tb-spacer { flex: 1; }
+#toolbar button {
+  background: #4a4a4a; border: none; color: #ddd;
+  padding: 4px 12px; border-radius: 3px; font-size: 12px; cursor: pointer;
+}
+#toolbar button:hover { background: #5a5a5a; }
+#btn-stop { background: #a1260d; }
+#btn-stop:hover { background: #c42b1c; }
+
+#terminal-host { flex: 1; min-height: 0; padding: 6px 0 0 8px; }
+#terminal { height: 100%; }

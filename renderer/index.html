@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self'">
+  <title>Java 学习 IDE</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="content">
+    <!-- 活动栏 -->
+    <div id="activitybar">
+      <button class="activity-btn active" id="act-explorer" title="资源管理器 (Ctrl+Shift+E)">📁</button>
+      <button class="activity-btn" id="act-dict" title="关键字词典 (Ctrl+Shift+D)">📖</button>
+      <div class="activity-spacer"></div>
+      <button class="activity-btn" id="act-settings" title="设置">⚙️</button>
+    </div>
+
+    <!-- 侧边栏（默认收起，点击活动栏图标展开） -->
+    <div id="sidebar" class="collapsed">
+      <div id="view-explorer" class="sidebar-view active">
+        <div class="sidebar-header">
+          <span>资源管理器</span>
+          <span class="header-actions">
+            <button id="btn-newfile" title="新建文件">＋</button>
+            <button id="btn-openfolder" title="打开文件夹">📂</button>
+          </span>
+        </div>
+        <div id="project-bar">
+          <span id="project-name">未打开项目</span>
+          <button id="btn-project-open" class="mini-btn">打开文件夹…</button>
+        </div>
+        <div id="file-tree" class="sidebar-body"></div>
+      </div>
+
+      <div id="view-dict" class="sidebar-view">
+        <div class="sidebar-header"><span>关键字词典</span></div>
+        <div class="dict-search-wrap">
+          <input id="dict-search" type="text" placeholder="输入关键字，如 class / for / static…" spellcheck="false">
+        </div>
+        <div id="dict-list" class="sidebar-body"></div>
+        <div id="dict-detail" class="dict-detail hidden"></div>
+      </div>
+    </div>
+
+    <!-- 主编辑区 -->
+    <div id="main-area">
+      <div id="tabbar"></div>
+      <div id="editor-host">
+        <div id="editor-container"></div>
+        <div id="welcome" class="hidden">
+          <div class="welcome-inner">
+            <div class="welcome-logo">☕</div>
+            <h1>Java 学习 IDE</h1>
+            <p class="welcome-sub">为大学 Java 初学者打造的轻量级开发环境</p>
+            <div class="welcome-actions">
+              <button id="w-new">新建 Java 文件</button>
+              <button id="w-open">打开文件…</button>
+              <button id="w-folder">打开文件夹（项目）</button>
+            </div>
+            <div class="welcome-tips">
+              <div>⌨️ <b>F5</b> 运行　<b>F6</b> 编译　<b>F1</b> 快捷键　<b>Ctrl+S</b> 保存</div>
+              <div>📖 点击左侧 📖 图标展开关键字词典，输入关键字查看语法用法与中文解释</div>
+              <div>✨ 输入 <code>psvm</code> 或 <code>sout</code> 后按 <b>Tab</b> 自动补全</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 问题面板（编译错误列表，点击跳转） -->
+      <div id="problems-panel" class="hidden">
+        <div class="problems-head">
+          <span>问题</span>
+          <span id="problems-count" class="problems-count"></span>
+          <span class="pspacer"></span>
+          <button id="problems-close" title="关闭">✕</button>
+        </div>
+        <div id="problems-list"></div>
+      </div>
+    </div>
+    </div>
+
+    <!-- 状态栏（底部通栏） -->
+    <div id="statusbar">
+      <span id="sb-file" title="当前文件">未打开文件</span>
+      <span id="sb-lncol">行 1，列 1</span>
+      <span id="sb-encoding">UTF-8</span>
+      <span class="sb-spacer"></span>
+      <span id="sb-java">JDK 检测中…</span>
+      <span id="sb-stats" title="学习统计">今日 0 行 · 编译 0 次 · 运行 0 次</span>
+    </div>
+  </div>
+
+  <!-- 快捷键速查 -->
+  <div id="modal-shortcuts" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span>快捷键速查</span>
+        <button class="modal-close" data-close>✕</button>
+      </div>
+      <div class="modal-body">
+        <table>
+          <tr><td><kbd>F5</kbd></td><td>运行当前文件（先编译）</td></tr>
+          <tr><td><kbd>F6</kbd></td><td>编译项目并显示错误</td></tr>
+          <tr><td><kbd>Shift+F5</kbd></td><td>停止运行中的程序</td></tr>
+          <tr><td><kbd>Ctrl+S</kbd></td><td>保存当前文件（运行前自动保存）</td></tr>
+          <tr><td><kbd>Ctrl+N</kbd></td><td>新建 Java 文件</td></tr>
+          <tr><td><kbd>Ctrl+O</kbd></td><td>打开文件</td></tr>
+          <tr><td><kbd>Ctrl+Shift+O</kbd></td><td>打开文件夹（项目）</td></tr>
+          <tr><td><kbd>Ctrl+B</kbd></td><td>切换侧边栏显示</td></tr>
+          <tr><td><kbd>Ctrl+Tab</kbd></td><td>切换下一个标签页</td></tr>
+          <tr><td><kbd>Ctrl+W</kbd></td><td>关闭当前标签页</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td>接受补全建议（关键字 / 代码片段）</td></tr>
+          <tr><td><kbd>Ctrl+/</kbd></td><td>注释 / 取消注释</td></tr>
+          <tr><td><kbd>F1</kbd></td><td>打开本速查面板</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div id="modal-settings" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head"><span>设置</span><button class="modal-close" data-close>✕</button></div>
+      <div class="modal-body">
+        <div class="setting-row">
+          <label>主题</label>
+          <select id="set-theme">
+            <option value="vs-dark">深色（默认）</option>
+            <option value="vs">浅色</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>字号</label>
+          <input id="set-fontsize" type="number" min="10" max="28" step="1">
+        </div>
+        <div class="setting-row">
+          <label>编程字体</label>
+          <select id="set-font">
+            <option value="'JetBrains Mono', Consolas, 'Courier New', monospace">JetBrains Mono / Consolas</option>
+            <option value="Consolas, 'Courier New', monospace">Consolas（Windows 内置）</option>
+            <option value="'Microsoft YaHei Mono', Consolas, monospace">微软雅黑 Mono</option>
+            <option value="'Courier New', monospace">Courier New</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>JDK 路径（可选，留空自动检测）</label>
+          <div class="jdk-row">
+            <input id="set-jdk" type="text" placeholder="如 C:\Program Files\Java\jdk-21">
+            <button id="btn-jdk-browse">浏览…</button>
+          </div>
+        </div>
+        <div class="setting-row" id="jdk-status-row">
+          <label>JDK 状态</label>
+          <span id="jdk-status">检测中…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 关于 -->
+  <div id="modal-about" class="modal hidden">
+    <div class="modal-box small">
+      <div class="modal-head"><span>关于</span><button class="modal-close" data-close>✕</button></div>
+      <div class="modal-body about-body">
+        <div class="welcome-logo">☕</div>
+        <h2>Java 学习 IDE <span class="ver">v1.0.0</span></h2>
+        <p>面向大学 Java 初学者的轻量级开发环境，基于 Electron + Monaco Editor + JDK javac 构建。</p>
+        <p>功能：一键编译运行（外部独立终端）、关键字中文词典、Tab 自动补全、实时错误波浪线、编译错误中文化、代码统计。</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script src="../vendor/monaco/vs/loader.js"></script>
+  <script src="editor.js"></script>
+  <script src="sidebar.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

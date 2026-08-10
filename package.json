@@ -1,0 +1,55 @@
+{
+  "name": "java-learn-ide",
+  "productName": "Java 学习 IDE",
+  "version": "1.0.0",
+  "description": "面向大学 Java 初学者的轻量级学习 IDE（Electron + Monaco + JDK javac）",
+  "main": "main.js",
+  "scripts": {
+    "start": "node scripts/launch.js",
+    "postinstall": "node scripts/copy-vendor.js",
+    "dist": "node scripts/dist.js --win portable"
+  },
+  "build": {
+    "appId": "com.javalearn.ide",
+    "productName": "JavaLearnIDE",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "preload-term.js",
+      "renderer/**",
+      "vendor/**",
+      "data/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "JavaLearnIDE-${version}-portable.exe"
+    },
+    "npmRebuild": false,
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
+    }
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.15.3",
+    "monaco-editor": ">=0.52.0 <0.60.0",
+    "xterm": "^5.3.0",
+    "@xterm/addon-fit": "^0.10.0"
+  }
+}
