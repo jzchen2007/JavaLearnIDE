@@ -23,6 +23,7 @@
   term.open(host);
   fit.fit();
   window.addEventListener('resize', () => fit.fit());
+  window.__term = term; // 调试探针：供 VERIFY 读取终端实际显示内容
 
   // ---------- 本地行编辑 + 输入回显 ----------
   // 程序 stdin 是管道（没有终端驱动的规范化处理），

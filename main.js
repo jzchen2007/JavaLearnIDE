@@ -282,8 +282,12 @@ function revealErrors(errors) {
 }
 
 // ---------- 终端窗口 ----------
+let termReady = false;
+let termQueue = [];
 function sendToTerm(channel, payload) {
-  if (termWin && !termWin.isDestroyed()) termWin.webContents.send(channel, payload);
+  if (!termWin || termWin.isDestroyed()) return;
+  if (termReady) termWin.webContents.send(channel, payload);
+  else termQueue.push({ channel, payload }); // 窗口尚未加载完成，先入队
 }
 function ensureTermWin() {
   if (termWin && !termWin.isDestroyed()) { termWin.show(); termWin.focus(); return termWin; }
@@ -295,7 +299,12 @@ function ensureTermWin() {
     webPreferences: { preload: path.join(APP_ROOT, 'preload-term.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   termWin.loadURL('app://ide/terminal.html');
-  termWin.on('closed', () => { termWin = null; });
+  termWin.webContents.once('did-finish-load', () => {
+    termReady = true;
+    for (const m of termQueue) termWin.webContents.send(m.channel, m.payload);
+    termQueue = [];
+  });
+  termWin.on('closed', () => { termWin = null; termReady = false; termQueue = []; });
   return termWin;
 }
 
@@ -409,6 +418,23 @@ function createMainWindow() {
           if (process.env.VERIFY_JSON) {
             try { fs.writeFileSync(process.env.VERIFY_JSON, JSON.stringify(info, null, 2)); } catch (e) { console.error('[verify] 写文件失败:', e.message); }
           }
+          // 抓取终端窗口实际显示内容（验证输出是否真的显示在终端）
+          try {
+            if (termWin && !termWin.isDestroyed()) {
+              await new Promise((r) => setTimeout(r, 600));
+              info.termDiag = await termWin.webContents.executeJavaScript(`(() => {
+                const t = window.__term;
+                if (!t) return JSON.stringify({ err: 'NO_TERM', ready: document.readyState });
+                const lines = [];
+                const len = t.buffer.active.length;
+                for (let i = 0; i < len; i++) { const l = t.buffer.active.getLine(i); if (l) lines.push(l.translateToString(true)); }
+                return JSON.stringify({ rows: len, lines: lines.slice(-12), cols: t.cols });
+              })()`);
+              if (process.env.VERIFY_JSON) {
+                try { fs.writeFileSync(process.env.VERIFY_JSON, JSON.stringify(info, null, 2)); } catch {}
+              }
+            }
+          } catch (e) { info.termError = e.message; }
         } catch (e) { console.error('[verify] failed:', e.message); }
         app.exit(0);
       }, 6000);
