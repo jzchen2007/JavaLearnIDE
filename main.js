@@ -525,18 +525,25 @@ function createMainWindow() {
                   out.tabWelcomeBack = !document.getElementById('welcome').classList.contains('hidden');
                 }
               } catch (e) { out.treeError = e.message; }
-              // 问题面板测试：编译错误 → 面板显示；编译成功 → 面板隐藏
-              await window.api.compile('F:/JavaIDE/.cowork-temp/demo/Broken.java');
-              await new Promise(r => setTimeout(r, 500));
-              out.problemsVisibleOnError = !document.getElementById('problems-panel').classList.contains('hidden');
-              out.problemsCount = document.querySelectorAll('#problems-list .problem-item').length;
-              out.problemsFirst = (document.querySelector('.problem-item .pi-zh') || {}).textContent || '';
-              await window.api.compile('F:/JavaIDE/.cowork-temp/demo-good/Hello.java');
-              await new Promise(r => setTimeout(r, 500));
-              out.problemsHiddenOnSuccess = document.getElementById('problems-panel').classList.contains('hidden');
             }
             return out;
           })()`);
+          // 问题面板测试（主进程侧控制 projectRoot，避免渲染进程无法修改主进程变量）
+          try {
+            const brokenDir = path.join(path.dirname(demoFile), '..', 'demo');
+            projectRoot = brokenDir;
+            await mainWin.webContents.executeJavaScript(`window.api.compile(${JSON.stringify(path.join(brokenDir, 'Broken.java'))})`);
+            await new Promise((r) => setTimeout(r, 500));
+            const p1 = await mainWin.webContents.executeJavaScript(`({ v: !document.getElementById('problems-panel').classList.contains('hidden'), n: document.querySelectorAll('#problems-list .problem-item').length, f: (document.querySelector('.problem-item .pi-zh') || {}).textContent || '' })`);
+            info.problemsVisibleOnError = p1.v;
+            info.problemsCount = p1.n;
+            info.problemsFirst = p1.f;
+            projectRoot = path.dirname(demoFile);
+            await mainWin.webContents.executeJavaScript(`window.api.compile(${JSON.stringify(demoFile)})`);
+            await new Promise((r) => setTimeout(r, 500));
+            const p2 = await mainWin.webContents.executeJavaScript(`document.getElementById('problems-panel').classList.contains('hidden')`);
+            info.problemsHiddenOnSuccess = p2;
+          } catch (e) { info.problemsError = e.message; }
           // 布局/样式诊断
           try {
             const css = await mainWin.webContents.executeJavaScript(`(() => {
