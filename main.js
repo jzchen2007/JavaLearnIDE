@@ -25,6 +25,7 @@ let petWin = null;
 let petAotTimer = null;
 const PET_W = 200, PET_H = 215, PET_PANEL_H = 160; // 桌宠窗口尺寸与面板展开高度
 let petPanelOpen = false; // 气泡/菜单展开时窗口向上增高
+let petDrag = null;       // 拖动状态 { winX, winY, startX, startY, last }
 let quitting = false;
 let projectRoot = null;
 let currentFile = null;
@@ -294,8 +295,21 @@ function resizePetPanel() {
   if (!petWin || petWin.isDestroyed()) return;
   const b = petWin.getBounds();
   const targetH = petPanelOpen ? PET_H + PET_PANEL_H : PET_H;
-  if (b.height === targetH) return;
+  // 容差防抖：Windows DPI 取整可能让实际尺寸与目标差 ±2px
+  if (Math.abs(b.height - targetH) < 3 && Math.abs(b.width - PET_W) < 3) return;
   petWin.setBounds({ x: b.x, y: b.y - (targetH - b.height), width: PET_W, height: targetH });
+}
+
+// 应用桌宠拖动位移（主进程统一 DIP 坐标运算 + 工作区钳制）
+// 关键：用 setBounds 同时钉死尺寸，防止 Windows DPI 取整导致窗口尺寸漂移（漂移会产生巨大隐形窗口挡住其他应用）
+function applyPetDrag(dx, dy) {
+  if (!petDrag || !petWin || petWin.isDestroyed()) return;
+  const b = petWin.getBounds();
+  const wa = screen.getDisplayMatching(b).workArea;
+  const cx = Math.round(Math.min(Math.max(petDrag.winX + dx, wa.x), wa.x + wa.width - b.width));
+  const cy = Math.round(Math.min(Math.max(petDrag.winY + dy, wa.y), wa.y + wa.height - b.height));
+  const targetH = petPanelOpen ? PET_H + PET_PANEL_H : PET_H;
+  petWin.setBounds({ x: cx, y: cy, width: PET_W, height: targetH });
 }
 
 function togglePet() {
@@ -322,7 +336,7 @@ function togglePet() {
     console.log(`[pet:${level}]`, message, `(${sourceId}:${lineNumber})`);
   });
   petWin.on('close', (e) => { if (!quitting) { e.preventDefault(); petWin.hide(); } }); // 点关闭=隐藏
-  petWin.on('closed', () => { petWin = null; clearInterval(petAotTimer); petAotTimer = null; });
+  petWin.on('closed', () => { petWin = null; petDrag = null; clearInterval(petAotTimer); petAotTimer = null; });
   // Windows 下透明置顶窗失焦后可能掉层级：失焦 + 周期重申置顶，保证永远悬浮最上层
   petWin.on('blur', () => {
     if (petWin && !petWin.isDestroyed() && petWin.isVisible()) petWin.setAlwaysOnTop(true, 'screen-saver');
@@ -572,18 +586,14 @@ function createMainWindow() {
                 await new Promise(r => setTimeout(r, 120));
                 return !document.getElementById('menu').classList.contains('hidden');
               })()`);
-              // 2) 拖动菲比 → 窗口位置变化（修复“没办法被移动”）
+              // 2) 拖动菲比 → 窗口按位移精确移动（主进程统一 DIP 坐标，修复拖动漂移）
               const posBefore = petWin.getPosition();
-              await petWin.webContents.executeJavaScript(`(async () => {
-                const pet = document.getElementById('pet');
-                pet.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, screenX: 500, screenY: 500 }));
-                document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, screenX: 570, screenY: 530 }));
-                document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, screenX: 570, screenY: 530 }));
-                await new Promise(r => setTimeout(r, 200));
-              })()`);
+              petDrag = { winX: posBefore[0], winY: posBefore[1], startX: 0, startY: 0, last: Date.now() };
+              applyPetDrag(80, 60);
               const posAfter = petWin.getPosition();
-              info.petDragMoved = (Math.abs(posAfter[0] - posBefore[0]) + Math.abs(posAfter[1] - posBefore[1])) > 10;
               info.petDragDelta = [posAfter[0] - posBefore[0], posAfter[1] - posBefore[1]];
+              info.petDragPrecise = info.petDragDelta[0] === 80 && info.petDragDelta[1] === 60;
+              petDrag = null;
               // 3) 拖动边界钳制：拖出屏幕 → 自动拉回工作区
               await petWin.webContents.executeJavaScript('window.petApi.moveTo(-500, -500)');
               await new Promise((r) => setTimeout(r, 250));
@@ -774,7 +784,7 @@ function registerIpc() {
   ipcMain.on('term:show', () => ensureTermWin());
   ipcMain.on('pet:toggle', () => togglePet());
   ipcMain.handle('pet:action', async (_e, action) => handlePetAction(action));
-  ipcMain.on('pet:hide', () => { petPanelOpen = false; if (petWin && !petWin.isDestroyed()) petWin.hide(); });
+  ipcMain.on('pet:hide', () => { petPanelOpen = false; petDrag = null; if (petWin && !petWin.isDestroyed()) petWin.hide(); });
   ipcMain.on('pet:setPanel', (_e, open) => {
     petPanelOpen = !!open;
     resizePetPanel();
@@ -787,6 +797,27 @@ function registerIpc() {
     const cy = Math.round(Math.min(Math.max(y, wa.y), wa.y + wa.height - b.height));
     petWin.setPosition(cx, cy);
   });
+  // 拖动：坐标运算统一在主进程（渲染进程 window.screenX 与 e.screenX 在 DPI 缩放下单位不一致，会造成拖动漂移）
+  ipcMain.on('pet:dragStart', () => {
+    if (!petWin || petWin.isDestroyed()) return;
+    const pt = screen.getCursorScreenPoint();
+    const [wx, wy] = petWin.getPosition();
+    petDrag = { winX: wx, winY: wy, startX: pt.x, startY: pt.y, last: Date.now() };
+  });
+  ipcMain.on('pet:dragMove', () => {
+    if (!petWin || petWin.isDestroyed()) return;
+    const now = Date.now();
+    if (!petDrag || now - petDrag.last > 1500) { // 防卡死：超过 1.5s 未移动则重新锚定
+      const pt = screen.getCursorScreenPoint();
+      const [wx, wy] = petWin.getPosition();
+      petDrag = { winX: wx, winY: wy, startX: pt.x, startY: pt.y, last: now };
+      return;
+    }
+    petDrag.last = now;
+    const pt = screen.getCursorScreenPoint();
+    applyPetDrag(pt.x - petDrag.startX, pt.y - petDrag.startY);
+  });
+  ipcMain.on('pet:dragEnd', () => { petDrag = null; });
   ipcMain.on('term:openError', (_e, { file, line }) => {
     if (mainWin) mainWin.webContents.send('editor:revealLine', { file, line });
     if (mainWin) { mainWin.show(); mainWin.focus(); }

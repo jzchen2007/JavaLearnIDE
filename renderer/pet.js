@@ -75,22 +75,26 @@
     }
   }
 
-  // ---- 拖动与点击（手动实现，区分点击/拖动）----
+  // ---- 拖动与点击（坐标运算统一在主进程，避免 DPI 缩放导致单位不一致而漂移）----
   pet.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
-    dragState = { sx: e.screenX, sy: e.screenY, wx: window.screenX, wy: window.screenY, moved: false };
+    dragState = { sx: e.screenX, sy: e.screenY, moved: false };
+    petApi.dragStart();
   });
   document.addEventListener('mousemove', (e) => {
     if (!dragState) return;
     const dx = e.screenX - dragState.sx;
     const dy = e.screenY - dragState.sy;
-    if (!dragState.moved && Math.abs(dx) + Math.abs(dy) > 4) dragState.moved = true; // 位移阈值：区分点击与拖动
-    if (dragState.moved) petApi.moveTo(dragState.wx + dx, dragState.wy + dy);       // 主进程钳制在屏幕工作区内
+    if (Math.abs(dx) + Math.abs(dy) > 4) { // 位移阈值：区分点击与拖动
+      dragState.moved = true;
+      petApi.dragMove();
+    }
   });
   document.addEventListener('mouseup', () => {
     if (!dragState) return;
     const wasDrag = dragState.moved;
     dragState = null;
+    petApi.dragEnd();
     if (!wasDrag && !busy) toggleMenu(); // 点击（未拖动）→ 弹出菜单
   });
 
