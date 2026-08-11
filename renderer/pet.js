@@ -9,8 +9,7 @@
   const bubbleState = document.getElementById('bubble-state');
   const menu = document.getElementById('menu');
   let busy = false;
-  let interactive = true;  // 窗口当前是否拦截鼠标事件
-  let dragState = null;    // { sx, sy, wx, wy, moved }
+  let dragState = null;
 
   // 状态 ↔ GIF 映射
   const stateMap = {
@@ -30,32 +29,28 @@
     }
   }
 
+  // 气泡/菜单打开时窗口向上增高，全部关闭后恢复贴合菲比
+  function syncPanel() {
+    const open = !bubble.classList.contains('hidden') || !menu.classList.contains('hidden');
+    petApi.setPanel(open);
+  }
+
   function say(text, state) {
     bubbleText.textContent = text || '…';
     bubble.classList.remove('hidden');
     if (state) setState(state);
     bubbleText.scrollTop = 0;
+    syncPanel();
   }
 
-  function hideBubble() { bubble.classList.add('hidden'); }
-  function toggleMenu() { hideBubble(); menu.classList.toggle('hidden'); }
-
-  // 透明区域点击穿透：悬停菲比/气泡/菜单 → 拦截鼠标；透明区 → 穿透到桌面
-  function setInteractive(v) {
-    v = !!v;
-    if (v === interactive) return;
-    interactive = v;
-    petApi.setInteractive(v);
-  }
-  function updateInteractive(e) {
-    const over = !!(e.target && e.target.closest && e.target.closest('#pet, #bubble, #menu'));
-    setInteractive(over);
-  }
+  function hideBubble() { bubble.classList.add('hidden'); syncPanel(); }
+  function toggleMenu() { hideBubble(); menu.classList.toggle('hidden'); syncPanel(); }
 
   async function doAction(act) {
     if (busy) return;
     busy = true;
     menu.classList.add('hidden');
+    syncPanel();
     if (act === 'hide') {
       hideBubble();
       petApi.hide();
@@ -80,28 +75,32 @@
     }
   }
 
-  // ---- 拖动与点击（手动实现，取代 -webkit-app-region，避免吞掉点击事件）----
+  // ---- 拖动与点击（手动实现，区分点击/拖动）----
   pet.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     dragState = { sx: e.screenX, sy: e.screenY, wx: window.screenX, wy: window.screenY, moved: false };
-    setInteractive(true); // 拖动期间必须拦截鼠标事件
   });
   document.addEventListener('mousemove', (e) => {
-    if (dragState) {
-      const dx = e.screenX - dragState.sx;
-      const dy = e.screenY - dragState.sy;
-      if (!dragState.moved && Math.abs(dx) + Math.abs(dy) > 4) dragState.moved = true; // 位移阈值：区分点击与拖动
-      if (dragState.moved) petApi.moveTo(dragState.wx + dx, dragState.wy + dy);       // 主进程会钳制在屏幕工作区内
-    } else {
-      updateInteractive(e);
-    }
+    if (!dragState) return;
+    const dx = e.screenX - dragState.sx;
+    const dy = e.screenY - dragState.sy;
+    if (!dragState.moved && Math.abs(dx) + Math.abs(dy) > 4) dragState.moved = true; // 位移阈值：区分点击与拖动
+    if (dragState.moved) petApi.moveTo(dragState.wx + dx, dragState.wy + dy);       // 主进程钳制在屏幕工作区内
   });
-  document.addEventListener('mouseup', (e) => {
-    if (dragState) {
-      const wasDrag = dragState.moved;
-      dragState = null;
-      if (!wasDrag && !busy) toggleMenu(); // 点击（未拖动）→ 弹出菜单
-      updateInteractive(e);                // 释放后按光标位置恢复穿透/交互
+  document.addEventListener('mouseup', () => {
+    if (!dragState) return;
+    const wasDrag = dragState.moved;
+    dragState = null;
+    if (!wasDrag && !busy) toggleMenu(); // 点击（未拖动）→ 弹出菜单
+  });
+
+  // 点击菲比/气泡/菜单之外的空白 → 关闭气泡与菜单
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#pet') || e.target.closest('#bubble') || e.target.closest('#menu')) return;
+    if (!bubble.classList.contains('hidden') || !menu.classList.contains('hidden')) {
+      bubble.classList.add('hidden');
+      menu.classList.add('hidden');
+      syncPanel();
     }
   });
 
@@ -112,6 +111,9 @@
     btn.addEventListener('click', () => doAction(btn.dataset.act));
   });
   document.getElementById('bubble-close').addEventListener('click', hideBubble);
+
+  // 主进程重新显示桌宠后，恢复面板尺寸同步
+  petApi.onResync(() => syncPanel());
 
   // 开场白
   setState('idle');

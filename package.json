@@ -20,6 +20,7 @@
       "main.js",
       "preload.js",
       "preload-term.js",
+      "preload-pet.js",
       "renderer/**",
       "vendor/**",
       "data/**",

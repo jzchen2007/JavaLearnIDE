@@ -10,8 +10,7 @@ html, body {
 
 #pet {
   position: absolute;
-  left: 50%; bottom: 5px;
-  transform: translateX(-50%);
+  left: 0; bottom: 0;
   width: 200px; height: 215px;
   cursor: grab;
 }
@@ -67,7 +66,7 @@ html, body {
 /* 功能菜单 */
 #menu {
   position: absolute;
-  top: 115px; right: 5px;
+  top: 120px; right: 5px;
   width: 150px;
   background: rgba(38, 30, 52, 0.95);
   border: 1px solid #cfb8ec;
