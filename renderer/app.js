@@ -170,7 +170,8 @@
     }).join('');
     bar.querySelectorAll('.tab').forEach((el) => {
       el.addEventListener('click', (ev) => {
-        if (ev.target.classList.contains('tab-close')) {
+        // closest 兼容按钮内的 SVG 图标（点击 svg/path 时 target 不是按钮本身）
+        if (ev.target.closest && ev.target.closest('.tab-close')) {
           closeTab(el.dataset.path);
         } else {
           activateTab(el.dataset.path);

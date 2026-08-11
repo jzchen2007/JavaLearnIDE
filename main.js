@@ -518,6 +518,11 @@ function createMainWindow() {
                   out.treeTabOpened = document.querySelectorAll('#tabbar .tab').length > 0;
                   out.treeSbFile = document.getElementById('sb-file').textContent;
                   out.treeWelcomeHidden = document.getElementById('welcome').classList.contains('hidden');
+                  // 标签页关闭测试：点关闭叉（按钮内是 SVG，target 可能为 svg/path）
+                  document.querySelector('#tabbar .tab .tab-close').click();
+                  await new Promise(r => setTimeout(r, 300));
+                  out.tabClosed = document.querySelectorAll('#tabbar .tab').length === 0;
+                  out.tabWelcomeBack = !document.getElementById('welcome').classList.contains('hidden');
                 }
               } catch (e) { out.treeError = e.message; }
               // 问题面板测试：编译错误 → 面板显示；编译成功 → 面板隐藏
