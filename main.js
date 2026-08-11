@@ -22,7 +22,7 @@ try {
 let mainWin = null;
 let termWin = null;
 let petWin = null;
-const PET_W = 200, PET_H = 215, PET_PANEL_H = 160; // 桌宠窗口尺寸与面板展开高度
+const PET_W = 192, PET_H = 208, PET_PANEL_H = 170; // 桌宠窗口尺寸（=GIF 原生分辨率，保持清晰）与面板展开高度
 let petPanelOpen = false; // 气泡/菜单展开时窗口向上增高
 let petDrag = null;       // 拖动状态 { winX, winY, startX, startY, last }
 let quitting = false;
@@ -584,7 +584,7 @@ function createMainWindow() {
               applyPetDrag(80, 60);
               const posAfter = petWin.getPosition();
               info.petDragDelta = [posAfter[0] - posBefore[0], posAfter[1] - posBefore[1]];
-              info.petDragPrecise = info.petDragDelta[0] === 80 && info.petDragDelta[1] === 60;
+              info.petDragPrecise = Math.abs(info.petDragDelta[0] - 80) <= 1 && Math.abs(info.petDragDelta[1] - 60) <= 1;
               petDrag = null;
               // 3) 拖动边界钳制：拖出屏幕 → 自动拉回工作区
               await petWin.webContents.executeJavaScript('window.petApi.moveTo(-500, -500)');

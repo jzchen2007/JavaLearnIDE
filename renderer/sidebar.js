@@ -32,10 +32,10 @@
     const items = [];
     for (const f of sorted) {
       const depth = f.rel.split(/[\\/]/).length - 1;
-      const icon = f.name.endsWith('.java') ? '☕' : '📄';
+      const icon = f.name.endsWith('.java') ? ICON.svg('filejava', 'java') : ICON.svg('file');
       items.push(
         `<div class="tree-item" data-path="${escapeHtml(f.path)}" style="padding-left:${10 + depth * 14}px">` +
-        `<span class="icon">${icon}</span><span>${escapeHtml(f.name)}</span></div>`
+        `${icon}<span>${escapeHtml(f.name)}</span></div>`
       );
     }
     el.innerHTML = items.join('');
@@ -84,7 +84,7 @@
       `<div class="sec">语法用法</div><div class="usage">${escapeHtml(k.usage)}</div>` +
       `<div class="sec">说明</div><div class="desc">${escapeHtml(k.desc)}</div>` +
       `<div class="sec">示例代码</div><div class="example">${escapeHtml(k.example)}</div>` +
-      `<div class="sec">易错点</div><div class="pitfall">⚠️ ${escapeHtml(k.pitfall)}</div>`;
+      `<div class="sec">易错点</div><div class="pitfall">${ICON.svg('warn')} ${escapeHtml(k.pitfall)}</div>`;
   }
 
   function searchDict(q) {

@@ -8,25 +8,45 @@ html, body {
   user-select: none;
 }
 
+/* 自绘线性图标（与主界面同一套风格） */
+.icon {
+  width: 15px; height: 15px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
 #pet {
   position: absolute;
   left: 0; bottom: 0;
-  width: 200px; height: 215px;
+  width: 192px; height: 208px; /* 与 GIF 原生分辨率一致，不做放大 → 更清晰 */
   cursor: grab;
+  display: flex; align-items: flex-end; justify-content: center;
 }
 #pet:active { cursor: grabbing; }
 #pet img {
-  width: 100%; height: 100%;
+  width: 192px; height: 208px;
   object-fit: contain;
   image-rendering: auto;
   pointer-events: none; /* 鼠标判定统一交给 #pet，GIF 透明区不干扰 */
+  /* 柔和阴影把菲比从背景中"托"出来，边缘观感更清晰 */
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,.30));
+  transition: transform .14s cubic-bezier(.25,.8,.35,1);
+}
+/* 点击按压效果 */
+#pet.pressed img { transform: scale(.92); }
+#pet.pop img { animation: pet-pop .4s cubic-bezier(.25,.8,.35,1); }
+@keyframes pet-pop {
+  0% { transform: scale(.88); }
+  45% { transform: scale(1.07); }
+  100% { transform: scale(1); }
 }
 
 /* 台词气泡（紧贴菲比头顶上方，尾巴指向菲比） */
 #bubble {
   position: absolute;
   left: 4px; right: 4px;
-  bottom: 222px; /* 菲比高 215 + 7px 间隙 */
+  bottom: 220px; /* 菲比高 208 + 12px 间隙 */
   background: rgba(38, 30, 52, 0.92);
   border: 1px solid #cfb8ec;
   border-radius: 12px;
@@ -37,6 +57,7 @@ html, body {
   display: flex; flex-direction: column;
   max-height: 130px;
 }
+#bubble:not(.hidden) { animation: pop-in .22s cubic-bezier(.25,.8,.35,1); }
 #bubble::after {
   content: ""; position: absolute;
   left: 50%; bottom: -8px;
@@ -44,6 +65,10 @@ html, body {
   border-top-color: rgba(38, 30, 52, 0.92);
   border-bottom: none;
   transform: translateX(-50%);
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(.9) translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 .bubble-head {
   display: flex; align-items: center; gap: 6px;
@@ -54,9 +79,12 @@ html, body {
 .bubble-spacer { flex: 1; }
 #bubble-close {
   background: transparent; border: none; color: #b9a0dd;
-  cursor: pointer; font-size: 11px;
+  cursor: pointer; padding: 2px; border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color .15s ease, background-color .15s ease;
 }
-#bubble-close:hover { color: #fff; }
+#bubble-close .icon { width: 12px; height: 12px; }
+#bubble-close:hover { color: #fff; background: rgba(255,255,255,.1); }
 #bubble-text {
   overflow-y: auto; white-space: pre-wrap; line-height: 1.55;
   word-break: break-word;
@@ -68,7 +96,7 @@ html, body {
 #menu {
   position: absolute;
   top: 8px; right: 5px;
-  width: 150px;
+  width: 158px;
   background: rgba(38, 30, 52, 0.95);
   border: 1px solid #cfb8ec;
   border-radius: 10px;
@@ -76,14 +104,18 @@ html, body {
   box-shadow: 0 6px 24px rgba(0,0,0,.4);
   z-index: 5;
 }
+#menu:not(.hidden) { animation: pop-in .18s cubic-bezier(.25,.8,.35,1); }
 .menu-item {
-  display: block; width: 100%;
+  display: flex; align-items: center; gap: 8px; width: 100%;
   background: transparent; border: none;
   color: #efe6ff; text-align: left;
   font-size: 12.5px; padding: 8px 10px;
   border-radius: 6px; cursor: pointer;
+  transition: background-color .15s ease, transform .12s ease;
 }
+.menu-item .icon { color: #c9b3f0; }
 .menu-item:hover { background: rgba(207,184,236,.2); }
+.menu-item:active { transform: scale(.97); }
 .menu-sep { height: 1px; background: rgba(207,184,236,.25); margin: 4px 6px; }
 
 .hidden { display: none !important; }

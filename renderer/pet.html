@@ -8,27 +8,41 @@
   <link rel="stylesheet" href="pet.css">
 </head>
 <body>
-  <!-- 台词气泡 -->
+  <!-- 台词气泡（紧贴菲比头顶） -->
   <div id="bubble" class="hidden">
     <div class="bubble-head">
       <span class="bubble-name">菲比</span>
       <span class="bubble-state" id="bubble-state">待机</span>
       <span class="bubble-spacer"></span>
-      <button id="bubble-close" title="关闭气泡">✕</button>
+      <button id="bubble-close" title="关闭气泡">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
     <div id="bubble-text"></div>
   </div>
 
   <!-- 功能菜单 -->
   <div id="menu" class="hidden">
-    <button class="menu-item" data-act="check">📋 检查代码</button>
-    <button class="menu-item" data-act="compile">🛠 编译</button>
-    <button class="menu-item" data-act="run">▶ 运行</button>
+    <button class="menu-item" data-act="check">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h8l3 3v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><circle cx="12" cy="12" r="3.5"/><path d="M14.5 14.5L17 17"/></svg>
+      检查代码
+    </button>
+    <button class="menu-item" data-act="compile">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5a4.5 4.5 0 0 0-6.2 5.6L3 17.4a2.1 2.1 0 0 0 3 3l5.3-5.3a4.5 4.5 0 0 0 5.6-6.2l-2.9 2.9-2.4-2.4z"/><path d="M17 7l2.5-2.5"/></svg>
+      编译
+    </button>
+    <button class="menu-item" data-act="run">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5l11 6.5-11 6.5z"/></svg>
+      运行
+    </button>
     <div class="menu-sep"></div>
-    <button class="menu-item" data-act="hide">🙈 躲起来</button>
+    <button class="menu-item" data-act="hide">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13.5A8 8 0 1 1 10.5 4a6.5 6.5 0 0 0 9.5 9.5z"/></svg>
+      躲起来
+    </button>
   </div>
 
-  <!-- 菲比本体（GIF 动画，从鸣潮同人仓库加载） -->
+  <!-- 菲比本体（GIF 动画） -->
   <div id="pet" class="idle" title="菲比（点击呼唤）">
     <img id="pet-img" src="pet/idle.gif" alt="菲比">
   </div>

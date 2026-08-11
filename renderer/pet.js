@@ -59,9 +59,9 @@
         return;
       }
       const msgs = {
-        check: ['📋 菲比正在检查代码…', 'thinking'],
-        compile: ['🛠 正在编译…', 'working'],
-        run: ['▶ 准备运行…', 'working']
+        check: ['菲比正在检查代码…', 'thinking'],
+        compile: ['正在编译…', 'working'],
+        run: ['准备运行…', 'working']
       };
       const [m, s] = msgs[act] || ['…', 'thinking'];
       say(m, s);
@@ -99,6 +99,7 @@
     if (e.button !== 0) return;
     dragState = { sx: e.screenX, sy: e.screenY, moved: false };
     petApi.dragStart();
+    pet.classList.add('pressed'); // 按压反馈
   });
   document.addEventListener('mousemove', (e) => {
     if (!dragState) return;
@@ -114,7 +115,15 @@
     const wasDrag = dragState.moved;
     dragState = null;
     petApi.dragEnd();
-    if (!wasDrag && !busy) toggleMenu(); // 点击（未拖动）→ 弹出菜单
+    pet.classList.remove('pressed');
+    if (!wasDrag && !busy) {
+      toggleMenu(); // 点击（未拖动）→ 弹出菜单
+      // 点击弹跳效果（动画结束后移除 class）
+      pet.classList.remove('pop');
+      void pet.offsetWidth; // 强制重排以重启动画
+      pet.classList.add('pop');
+      setTimeout(() => pet.classList.remove('pop'), 450);
+    }
   });
 
   // 点击菲比/气泡/菜单之外的空白 → 关闭气泡与菜单

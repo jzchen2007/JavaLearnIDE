@@ -4,7 +4,7 @@
   const api = window.api;
   // 直接在浏览器中打开 index.html 时没有 Electron 提供的 API，给出友好提示
   if (!api) {
-    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Microsoft YaHei,sans-serif;background:#1e1e1e;color:#ccc"><div style="text-align:center;line-height:2"><div style="font-size:48px">☕</div><div style="font-size:18px;color:#fff">这是 JavaLearnIDE 的界面文件</div><div style="font-size:13px">请运行 JavaLearnIDE.exe（或 npm start）打开应用，<br>不要直接在浏览器中打开本页面。</div></div></div>';
+    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Microsoft YaHei,sans-serif;background:#1e1e1e;color:#ccc"><div style="text-align:center;line-height:2"><div style="font-size:48px">${ICON.svg('run', 'lg')}</div><div style="font-size:18px;color:#fff">这是 JavaLearnIDE 的界面文件</div><div style="font-size:13px">请运行 JavaLearnIDE.exe（或 npm start）打开应用，<br>不要直接在浏览器中打开本页面。</div></div></div>`;
     return;
   }
   let app = null;            // app:init 数据
@@ -165,7 +165,7 @@
       const dirty = t.dirty ? ' dirty' : '';
       return `<div class="tab${active}" data-path="${t.path}">` +
         `<span class="tab-name${dirty}">${t.name}</span>` +
-        `<button class="tab-close" title="关闭">✕</button></div>`;
+        `<button class="tab-close" title="关闭">${ICON.svg('close')}</button></div>`;
     }).join('');
     bar.querySelectorAll('.tab').forEach((el) => {
       el.addEventListener('click', (ev) => {
@@ -227,9 +227,9 @@
     const res = await api.compile(activeTab);
     EditorMod.setMarkers(res.errors || []);
     if (res.ok) {
-      toast('✅ 编译成功', 'ok');
+      toast(`${ICON.svg('check')} 编译成功`, 'ok');
     } else {
-      toast(`❌ 编译失败：${res.errors.length} 个错误`, 'err');
+      toast(`${ICON.svg('error')} 编译失败：${res.errors.length} 个错误`, 'err');
       if (res.errors[0]?.file) {
         api.revealLine(res.errors[0].file, res.errors[0].line);
       }
@@ -243,9 +243,9 @@
     toast('正在编译并运行…');
     const res = await api.run(activeTab);
     if (res && !res.ok && res.errors && res.errors.length) {
-      toast(`❌ 编译失败：${res.errors.length} 个错误，已定位到第一处`, 'err');
+      toast(`${ICON.svg('error')} 编译失败：${res.errors.length} 个错误，已定位到第一处`, 'err');
     } else if (res && res.ok) {
-      toast('▶ 程序已运行，请查看终端窗口', 'ok');
+      toast(`${ICON.svg('run')} 程序已运行，请查看终端窗口`, 'ok');
     }
     updateStatsBar();
   }
@@ -430,10 +430,10 @@
     const el = $('jdk-status');
     if (app.jdk.ok) {
       $('sb-java').textContent = 'JDK ' + app.jdk.version;
-      if (el) { el.textContent = '✅ 已检测到 javac ' + app.jdk.version; el.className = 'ok'; }
+      if (el) { el.innerHTML = `${ICON.svg('check')} 已检测到 javac ${app.jdk.version}`; el.className = 'ok'; }
     } else {
-      $('sb-java').textContent = '⚠ 未检测到 JDK';
-      if (el) { el.textContent = '❌ 未检测到 javac，请在下方设置 JDK 路径（bin 目录的上级）'; el.className = 'err'; }
+      $('sb-java').textContent = '未检测到 JDK';
+      if (el) { el.innerHTML = `${ICON.svg('error')} 未检测到 javac，请在下方设置 JDK 路径（bin 目录的上级）`; el.className = 'err'; }
     }
   }
 
@@ -446,7 +446,7 @@
   function toast(msg, type) {
     const el = document.createElement('div');
     el.className = 'toast ' + (type || '');
-    el.textContent = msg;
+    el.innerHTML = msg;
     $('toast-container').appendChild(el);
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 2600);
     setTimeout(() => el.remove(), 3000);
