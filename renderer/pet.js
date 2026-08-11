@@ -10,6 +10,7 @@
   const menu = document.getElementById('menu');
   let busy = false;
   let dragState = null;
+  let idleTimer = null; // 动作完成后自动回待机的定时器
 
   // 状态 ↔ GIF 映射
   const stateMap = {
@@ -51,28 +52,46 @@
     busy = true;
     menu.classList.add('hidden');
     syncPanel();
-    if (act === 'hide') {
-      hideBubble();
-      petApi.hide();
-      busy = false;
-      return;
+    try {
+      if (act === 'hide') {
+        hideBubble();
+        petApi.hide();
+        return;
+      }
+      const msgs = {
+        check: ['📋 菲比正在检查代码…', 'thinking'],
+        compile: ['🛠 正在编译…', 'working'],
+        run: ['▶ 准备运行…', 'working']
+      };
+      const [m, s] = msgs[act] || ['…', 'thinking'];
+      say(m, s);
+      // 超时保护：IPC 卡住/异常时强制结束动作，避免 busy 永久卡死（菲比不会永远停在思考表情）
+      let r;
+      try {
+        r = await Promise.race([
+          petApi.action(act),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('操作超时（45 秒）')), 45000))
+        ]);
+      } catch (e) {
+        setState('sad');
+        say((e && e.message) || '操作失败…', 'sad');
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => setState('idle'), 4000); // 异常路径同样自动回待机
+        return;
+      }
+      if (r && r.ok) {
+        setState('happy');
+        say(r.text || '搞定～', 'happy');
+      } else {
+        setState('sad');
+        say((r && r.text) || '出错了…', 'sad');
+      }
+    } finally {
+      busy = false; // 无论成功/失败/异常，都释放忙碌锁
     }
-    const msgs = {
-      check: ['📋 菲比正在检查代码…', 'thinking'],
-      compile: ['🛠 正在编译…', 'working'],
-      run: ['▶ 准备运行…', 'working']
-    };
-    const [m, s] = msgs[act] || ['…', 'thinking'];
-    say(m, s);
-    const r = await petApi.action(act);
-    busy = false;
-    if (r && r.ok) {
-      setState('happy');
-      say(r.text || '搞定～', 'happy');
-    } else {
-      setState('sad');
-      say((r && r.text) || '出错了…', 'sad');
-    }
+    // 动作完成 4 秒后自动回待机（菲比不会一直停留在一个表情）
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => setState('idle'), 4000);
   }
 
   // ---- 拖动与点击（坐标运算统一在主进程，避免 DPI 缩放导致单位不一致而漂移）----

@@ -620,6 +620,31 @@ function createMainWindow() {
               const pc = await handlePetAction('check');
               info.petCheckOk = pc.ok;
               info.petCheckText = (pc.text || '').slice(0, 150);
+              // 7) GIF 全部可加载（naturalWidth>0）+ 状态机回归：点击编译 → working → sad(无文件) → 4s 回 idle
+              const sm = await petWin.webContents.executeJavaScript(`(async () => {
+                const out = { gifs: {} };
+                for (const [k, g] of Object.entries({ idle:'idle.gif', working:'running.gif', thinking:'waiting.gif', happy:'review.gif', sad:'failed.gif' })) {
+                  const img = new Image();
+                  await new Promise(res => { img.onload = () => res(); img.onerror = () => res(); img.src = 'pet/' + g; });
+                  out.gifs[k] = img.naturalWidth > 0;
+                }
+                // 模拟点击“编译”菜单项（无打开文件 → 应返回 sad）
+                document.querySelector('[data-act="compile"]').click();
+                await new Promise(r => setTimeout(r, 800));
+                out.stateAfterCompile = document.getElementById('pet').className;
+                out.imgAfterCompile = document.getElementById('pet-img').src.split('/').pop();
+                // 4 秒后应自动回 idle（不再一直停留在一个表情）
+                await new Promise(r => setTimeout(r, 4500));
+                out.stateAfter4s = document.getElementById('pet').className;
+                out.imgAfter4s = document.getElementById('pet-img').src.split('/').pop();
+                return out;
+              })()`);
+              info.petGifs = sm.gifs;
+              info.petGifsOk = Object.values(sm.gifs).every(Boolean);
+              info.petStateAfterCompile = sm.stateAfterCompile;
+              info.petImgAfterCompile = sm.imgAfterCompile;
+              info.petStateAfter4s = sm.stateAfter4s;
+              info.petIdleRecover = sm.stateAfter4s === 'idle' && sm.imgAfter4s === 'idle.gif';
             }
             togglePet(); // 隐藏
           } catch (e) { info.petError = e.message; }
