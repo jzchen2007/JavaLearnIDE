@@ -472,6 +472,7 @@ function createMainWindow() {
   // 调试：设置 VERIFY 时自动执行端到端验证并退出
   if (process.env.VERIFY) {
     const demoFile = process.env.VERIFY_FILE;
+    if (demoFile) projectRoot = path.dirname(demoFile); // 文件树测试需要项目根
     mainWin.webContents.once('did-finish-load', () => {
       setTimeout(async () => {
         try {
@@ -504,6 +505,21 @@ function createMainWindow() {
               ds.value = 'class'; ds.dispatchEvent(new Event('input'));
               out.dictSearchCount = document.querySelectorAll('.dict-item').length;
               out.dictFirst = (document.querySelector('.dict-item .kw') || {}).textContent || '';
+              // 文件树点击测试（资源管理器文件打开）
+              try {
+                const data = await window.api.listProject();
+                SidebarMod.renderTree(data);
+                await new Promise(r => setTimeout(r, 200));
+                const items = document.querySelectorAll('#file-tree .tree-item');
+                out.treeItems = items.length;
+                if (items.length) {
+                  items[0].click();
+                  await new Promise(r => setTimeout(r, 600));
+                  out.treeTabOpened = document.querySelectorAll('#tabbar .tab').length > 0;
+                  out.treeSbFile = document.getElementById('sb-file').textContent;
+                  out.treeWelcomeHidden = document.getElementById('welcome').classList.contains('hidden');
+                }
+              } catch (e) { out.treeError = e.message; }
               // 问题面板测试：编译错误 → 面板显示；编译成功 → 面板隐藏
               await window.api.compile('F:/JavaIDE/.cowork-temp/demo/Broken.java');
               await new Promise(r => setTimeout(r, 500));

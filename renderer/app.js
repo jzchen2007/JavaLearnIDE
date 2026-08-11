@@ -27,6 +27,7 @@
     document.body.classList.toggle('light', settings.theme === 'vs');
 
     const keywords = await api.getKeywords();
+    SidebarMod.init({ onOpenFile: openFile }); // 注入文件树点击回调（此前缺失导致资源管理器文件无法打开）
     SidebarMod.setKeywords(keywords);
 
     EditorMod.loadMonaco().then(() => {
