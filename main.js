@@ -22,7 +22,6 @@ try {
 let mainWin = null;
 let termWin = null;
 let petWin = null;
-let petAotTimer = null;
 const PET_W = 200, PET_H = 215, PET_PANEL_H = 160; // 桌宠窗口尺寸与面板展开高度
 let petPanelOpen = false; // 气泡/菜单展开时窗口向上增高
 let petDrag = null;       // 拖动状态 { winX, winY, startX, startY, last }
@@ -325,27 +324,18 @@ function togglePet() {
   }
   petWin = new BrowserWindow({
     width: PET_W, height: PET_H,
-    frame: false, transparent: true, alwaysOnTop: true,
+    frame: false, transparent: true,
     resizable: false, skipTaskbar: true, hasShadow: false,
+    parent: mainWin, // 作为主窗口的子窗口：与主界面同一图层，不置顶（切到别的应用时一起被盖住）
     webPreferences: { preload: path.join(APP_ROOT, 'preload-pet.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
-  petWin.setAlwaysOnTop(true, 'screen-saver');
   petWin.loadURL('app://ide/pet.html');
   petWin.webContents.on('console-message', (event) => {
     const { level, message, lineNumber, sourceId } = event;
     console.log(`[pet:${level}]`, message, `(${sourceId}:${lineNumber})`);
   });
   petWin.on('close', (e) => { if (!quitting) { e.preventDefault(); petWin.hide(); } }); // 点关闭=隐藏
-  petWin.on('closed', () => { petWin = null; petDrag = null; clearInterval(petAotTimer); petAotTimer = null; });
-  // Windows 下透明置顶窗失焦后可能掉层级：失焦 + 周期重申置顶，保证永远悬浮最上层
-  petWin.on('blur', () => {
-    if (petWin && !petWin.isDestroyed() && petWin.isVisible()) petWin.setAlwaysOnTop(true, 'screen-saver');
-  });
-  petAotTimer = setInterval(() => {
-    if (petWin && !petWin.isDestroyed() && petWin.isVisible() && !quitting) {
-      petWin.setAlwaysOnTop(true, 'screen-saver');
-    }
-  }, 3000);
+  petWin.on('closed', () => { petWin = null; petDrag = null; });
 }
 
 // 获取编辑器当前内容（实时，而非磁盘旧版本）
@@ -568,11 +558,13 @@ function createMainWindow() {
               }
             }
           } catch (e) { info.termError = e.message; }
-          // 桌宠测试：创建窗口、加载、离线检查
+          // 桌宠测试：开屏默认显示（启动即创建，无需点按钮）、点击/拖动/面板/同图层
           try {
-            togglePet();
             await new Promise((r) => setTimeout(r, 2500));
             info.petWinCreated = !!(petWin && !petWin.isDestroyed());
+            info.petVisibleOnStart = !!(petWin && !petWin.isDestroyed() && petWin.isVisible()); // 开屏默认可见
+            info.petIsChild = !!(petWin && mainWin && !petWin.isDestroyed() && petWin.getParentWindow() === mainWin); // 同图层：主窗口子窗口
+            info.petNotTopmost = !!(petWin && !petWin.isDestroyed() && !petWin.isAlwaysOnTop()); // 不置顶
             if (petWin && !petWin.isDestroyed()) {
               info.petUiLoaded = await petWin.webContents.executeJavaScript('!!document.querySelector("#pet img") && !!document.getElementById("pet-img").src');
               // 先放到已知位置，再测拖动位移
@@ -608,7 +600,7 @@ function createMainWindow() {
               await new Promise((r) => setTimeout(r, 250));
               info.petCollapsedH = petWin.getBounds().height;
               info.petResizeOk = info.petExpandedH > info.petCollapsedH;
-              // 5) 置顶状态（修复“不悬浮最上层”）
+              // 5) 置顶状态：预期 false（与主界面同图层，不置顶）
               info.petAlwaysOnTop = petWin.isAlwaysOnTop();
               // 6) 桌宠窗口截图（视觉确认）
               try {
@@ -904,6 +896,7 @@ app.whenReady().then(() => {
   createMainWindow();
   buildMenu();
   registerIpc();
+  togglePet(); // 开屏默认显示菲比（无需点按钮）
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createMainWindow(); });
 });
 
