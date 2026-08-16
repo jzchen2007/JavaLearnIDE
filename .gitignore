@@ -16,3 +16,6 @@ desktop.ini
 # 编辑器
 .vscode/
 .idea/
+
+# 记忆笔记（仅本地，不入库）
+memory/
