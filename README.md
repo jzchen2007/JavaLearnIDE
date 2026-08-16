@@ -2,7 +2,7 @@
 
 面向编程初学者的轻量级开发环境，支持 **Java 与 Python 3**。基于 **Electron + Monaco Editor（VS Code 同款编辑器内核）** 构建，Java 用 JDK javac、Python 用本机 Python3 解释器，界面风格参考 Visual Studio Code。
 
-GitHub：<https://github.com/jzchen2007/JavaLearnIDE>
+GitHub：<https://github.com/jzchen2007/LiteCodeIDE>
 
 ## 🐍 v2.1.0 更新：兼容 Python 3
 
