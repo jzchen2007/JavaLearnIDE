@@ -431,6 +431,25 @@ kbd {
 #jdk-status.ok { color: var(--ok); display: inline-flex; align-items: center; gap: 5px; }
 #jdk-status.err { color: var(--error); display: inline-flex; align-items: center; gap: 5px; }
 #jdk-status .icon { width: 14px; height: 14px; }
+/* LeetCode 刷题 */
+#modal-leetcode .modal-box { width: 740px; }
+#lc-lang { flex: none; width: 92px; padding: 6px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 13px; }
+.lc-title { font-size: 15px; font-weight: 600; color: var(--text-bright); margin-bottom: 8px; }
+.lc-desc { max-height: 220px; overflow-y: auto; font-size: 12.5px; line-height: 1.7; color: var(--text); white-space: pre-wrap; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 10px; }
+.lc-sub { margin: 12px 0 4px; font-size: 11px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
+#lc-cases { max-height: 160px; overflow-y: auto; }
+.lc-case { font-size: 12px; padding: 4px 6px; border-radius: 4px; color: var(--text); word-break: break-all; }
+.lc-case:nth-child(odd) { background: var(--bg-hover); }
+.lc-case code { font-family: Consolas, monospace; color: #ce9178; }
+.lc-add { flex: 1; display: flex; gap: 8px; align-items: flex-start; }
+.lc-add textarea { flex: 1.4; min-height: 44px; resize: vertical; }
+.lc-add input { flex: 1; min-width: 0; }
+.lc-add textarea, .lc-add input { padding: 6px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 12.5px; font-family: Consolas, monospace; }
+.lc-add textarea:focus, .lc-add input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); outline: none; }
+.lc-add button { padding: 6px 12px; background: var(--bg-active); border: 1px solid var(--border); color: var(--text); border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.lc-add button:hover { background: var(--bg-hover); }
+.lc-run { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
+.lc-run:hover { background: var(--accent-bright); }
 .about-body { text-align: center; line-height: 1.9; }
 .about-body h2 { color: var(--text-bright); margin: 8px 0 4px; }
 .about-body .ver { font-size: 12px; color: var(--text-dim); }

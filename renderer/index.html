@@ -18,6 +18,9 @@
       <button class="activity-btn" id="act-dict" title="关键字词典 (Ctrl+Shift+D)">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>
       </button>
+      <button class="activity-btn" id="act-leetcode" title="LeetCode 刷题">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 20h8M12 16v4"/><path d="M7 5h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H5a3 3 0 0 0 3 4M17 6h2a3 3 0 0 1-3 4"/></svg>
+      </button>
       <div class="activity-spacer"></div>
       <button class="activity-btn" id="act-pet" title="桌宠 菲比 (Ctrl+Alt+P)">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 13.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/><ellipse cx="7" cy="9.5" rx="1.6" ry="2.2"/><ellipse cx="17" cy="9.5" rx="1.6" ry="2.2"/><ellipse cx="9.4" cy="5.8" rx="1.5" ry="2"/><ellipse cx="14.6" cy="5.8" rx="1.5" ry="2"/></svg>
@@ -33,11 +36,8 @@
         <div class="sidebar-header">
           <span>资源管理器</span>
           <span class="header-actions">
-            <button id="btn-newfile" title="新建 Java 文件">
+            <button id="btn-newfile" title="新建文件">
               <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 9.5v6M9 12.5h6"/></svg>
-            </button>
-            <button id="btn-newfile-py" title="新建 Python 文件">
-              <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 15.5c0 1.2 1 1.2 1.5 1.2s1.5 0 1.5-1.2-1-1.2-1.5-1.2-1.5 0-1.5-1.2 1-1.2 1.5-1.2 1.5 0 1.5 1.2"/></svg>
             </button>
             <button id="btn-openfolder" title="打开文件夹">
               <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 18l5-7 4 5 3-3 4 5"/></svg>
@@ -91,11 +91,7 @@
             <div class="welcome-actions">
               <button id="w-new" class="primary">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 9.5v6M9 12.5h6"/></svg>
-                新建 Java 文件
-              </button>
-              <button id="w-new-py" class="ghost">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 15.5c0 1.2 1 1.2 1.5 1.2s1.5 0 1.5-1.2-1-1.2-1.5-1.2-1.5 0-1.5-1.2 1-1.2 1.5-1.2 1.5 0 1.5 1.2"/></svg>
-                新建 Python 文件
+                新建文件
               </button>
               <button id="w-open" class="ghost">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
@@ -182,7 +178,7 @@
           <tr><td><kbd>F6</kbd></td><td>编译项目并显示错误</td></tr>
           <tr><td><kbd>Shift+F5</kbd></td><td>停止运行中的程序</td></tr>
           <tr><td><kbd>Ctrl+S</kbd></td><td>保存当前文件（运行前自动保存）</td></tr>
-          <tr><td><kbd>Ctrl+N</kbd></td><td>新建 Java 文件</td></tr>
+          <tr><td><kbd>Ctrl+N</kbd></td><td>新建文件（按后缀识别 Java/Python）</td></tr>
           <tr><td><kbd>Ctrl+O</kbd></td><td>打开文件</td></tr>
           <tr><td><kbd>Ctrl+Shift+O</kbd></td><td>打开文件夹（项目）</td></tr>
           <tr><td><kbd>Ctrl+B</kbd></td><td>切换侧边栏显示</td></tr>
@@ -245,6 +241,14 @@
           <label>Python 状态</label>
           <span id="python-status">检测中…</span>
         </div>
+        <div class="setting-row"><label></label><span style="color:var(--text-dim);font-size:11px">— LeetCode 刷题 —</span></div>
+        <div class="setting-row">
+          <label>LeetCode 站点</label>
+          <select id="set-leetcode">
+            <option value="https://leetcode.com">leetcode.com（国际版）</option>
+            <option value="https://leetcode.cn">leetcode.cn（力扣）</option>
+          </select>
+        </div>
         <div class="setting-row"><label></label><span style="color:var(--text-dim);font-size:11px">— AI 检查（桌宠·菲比）—</span></div>
         <div class="setting-row">
           <label>AI 接口地址</label>
@@ -257,6 +261,46 @@
         <div class="setting-row">
           <label>模型名</label>
           <input id="set-aimodel" type="text" placeholder="如 Qwen/Qwen2.5-7B-Instruct">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LeetCode 刷题 -->
+  <div id="modal-leetcode" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-head"><span>LeetCode 刷题</span><button class="modal-close" data-close>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button></div>
+      <div class="modal-body">
+        <div class="setting-row">
+          <label>题号或网址</label>
+          <div class="jdk-row">
+            <input id="lc-query" type="text" placeholder="如 1，或 leetcode.com/problems/two-sum/">
+            <select id="lc-lang">
+              <option value="java">Java</option>
+              <option value="python">Python</option>
+            </select>
+            <button id="btn-lc-fetch">拉取题目</button>
+          </div>
+        </div>
+        <div id="lc-result" class="hidden">
+          <div id="lc-title" class="lc-title"></div>
+          <div id="lc-desc" class="lc-desc"></div>
+          <div class="lc-sub">测试用例</div>
+          <div id="lc-cases"></div>
+          <div class="setting-row" style="margin-top:12px;">
+            <label>添加用例</label>
+            <div class="lc-add">
+              <textarea id="lc-case-input" rows="2" placeholder="输入（多参数每行一个，如：[2,7,11,15]&#10;9）"></textarea>
+              <input id="lc-case-expected" type="text" placeholder="期望输出（如 [0,1]）">
+              <button id="btn-lc-addcase">添加</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label></label>
+            <button id="btn-lc-runtests" class="lc-run">本地判题（运行测试）</button>
+          </div>
         </div>
       </div>
     </div>
@@ -283,7 +327,7 @@
             <path d="M40.5 21 49 32l-8.5 11" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h2>轻量编程 IDE <span class="ver">v2.1.0</span></h2>
+        <h2>轻量编程 IDE <span class="ver">v2.2.0</span></h2>
         <p>面向编程初学者的轻量级开发环境，基于 Electron + Monaco Editor 构建，支持 Java（JDK javac）与 Python 3 两种语言。</p>
         <p>功能：一键编译运行（外部独立终端）、Java + Python 双语言关键字中文词典、Tab 自动补全、实时错误波浪线、编译错误中文化、代码统计。</p>
       </div>

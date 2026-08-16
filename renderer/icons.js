@@ -57,7 +57,9 @@ const ICON_DEFS = {
   // 代码括号（词典/logo 辅助）
   code: '<path d="M9 7L4 12l5 5"/><path d="M15 7l5 5-5 5"/>',
   // 项目（方块+文件夹组合，词典视图头部）
-  project: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>'
+  project: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
+  // 刷题/LeetCode：奖杯
+  leetcode: '<path d="M8 20h8M12 16v4"/><path d="M7 5h10v4a5 5 0 0 1-10 0z"/><path d="M7 6H5a3 3 0 0 0 3 4M17 6h2a3 3 0 0 1-3 4"/>'
 };
 
 window.ICON = {

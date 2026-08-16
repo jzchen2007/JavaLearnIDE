@@ -19,6 +19,7 @@
 
   const $ = (id) => document.getElementById(id);
   const langOf = (p) => /\.py$/i.test(p || '') ? 'python' : 'java';
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   // ---------- 初始化 ----------
   async function init() {
@@ -300,6 +301,7 @@
     // 活动栏
     $('act-explorer').addEventListener('click', () => switchView('explorer'));
     $('act-dict').addEventListener('click', () => switchView('dict'));
+    $('act-leetcode').addEventListener('click', () => openModal('modal-leetcode'));
     $('act-pet').addEventListener('click', () => api.togglePet());
     $('act-settings').addEventListener('click', () => openSettings());
     // 文件
@@ -307,19 +309,11 @@
       const r = await api.newFile();
       if (r) { ensureExplorerOpen(); await openFile(r.path, r.content); refreshProject(); }
     });
-    $('btn-newfile-py').addEventListener('click', async () => {
-      const r = await api.newFile('python');
-      if (r) { ensureExplorerOpen(); await openFile(r.path, r.content); refreshProject(); }
-    });
     $('btn-openfolder').addEventListener('click', openFolder);
     $('btn-project-open').addEventListener('click', openFolder);
     // 欢迎页
     $('w-new').addEventListener('click', async () => {
       const r = await api.newFile();
-      if (r) { ensureExplorerOpen(); await openFile(r.path, r.content); refreshProject(); }
-    });
-    $('w-new-py').addEventListener('click', async () => {
-      const r = await api.newFile('python');
       if (r) { ensureExplorerOpen(); await openFile(r.path, r.content); refreshProject(); }
     });
     $('w-open').addEventListener('click', openFileDialog);
@@ -366,6 +360,7 @@
     $('set-aiurl').addEventListener('change', (e) => api.setSettings({ aiBaseUrl: e.target.value.trim() }));
     $('set-aikey').addEventListener('change', (e) => api.setSettings({ aiApiKey: e.target.value.trim() }));
     $('set-aimodel').addEventListener('change', (e) => api.setSettings({ aiModel: e.target.value.trim() }));
+    $('set-leetcode').addEventListener('change', (e) => api.setSettings({ leetcodeBaseUrl: e.target.value.trim() }));
     $('btn-jdk-browse').addEventListener('click', async () => {
       // 通过主进程对话框选择目录（复用 openFolderDialog 逻辑扩展：这里用系统对话框）
       const r = await window.api.openFolderDialog();
@@ -375,9 +370,64 @@
       }
     });
     window.addEventListener('beforeunload', () => flushStats());
+    // LeetCode 刷题
+    $('btn-lc-fetch').addEventListener('click', fetchLeetCode);
+    $('btn-lc-addcase').addEventListener('click', addLeetCodeCase);
+    $('btn-lc-runtests').addEventListener('click', runLeetCodeTests);
+    $('lc-query').addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchLeetCode(); });
+  }
+
+  // ---------- LeetCode 刷题 ----------
+  function renderLcCases(cases) {
+    const el = $('lc-cases');
+    if (!cases || !cases.length) { el.innerHTML = '<div style="color:var(--text-dim)">暂无测试用例</div>'; return; }
+    el.innerHTML = cases.map((c, i) => {
+      const exp = c.expected ? ` <span style="color:var(--ok)">期望 ${esc(c.expected)}</span>` : '';
+      return `<div class="lc-case"><b>#${i + 1}</b> <code>${esc(c.input.replace(/\n/g, ' ⏎ '))}</code>${exp}</div>`;
+    }).join('');
+  }
+
+  async function fetchLeetCode() {
+    const query = $('lc-query').value.trim();
+    const lang = $('lc-lang').value;
+    if (!query) { toast('请输入题号或网址', 'err'); return; }
+    toast('正在拉取题目…');
+    const r = await api.leetcodeFetch(query, lang);
+    if (!r.ok) { toast(r.error || '拉取失败', 'err'); return; }
+    lcDir = r.dir; lcLang = lang;
+    $('lc-result').classList.remove('hidden');
+    $('lc-title').textContent = (r.difficulty ? '[' + r.difficulty + '] ' : '') + r.title;
+    $('lc-desc').textContent = r.description || '（无描述）';
+    renderLcCases(r.testcases);
+    if (r.complexType) toast('该题含链表/树类型，自动判题暂不支持，已生成代码模板，请手动编写测试', 'err');
+    else toast('已生成代码与测试，请在编辑器中完成 Solution 后点击「本地判题」', 'ok');
+    await openFile(r.solFile, r.content);
+    refreshProject();
+  }
+
+  async function addLeetCodeCase() {
+    if (!lcDir) { toast('请先拉取题目', 'err'); return; }
+    const input = $('lc-case-input').value;
+    const expected = $('lc-case-expected').value.trim();
+    if (!input.trim()) { toast('请输入测试用例输入', 'err'); return; }
+    const r = await api.leetcodeAddTestCase(lcDir, { input, expected });
+    if (!r.ok) { toast(r.error || '添加失败', 'err'); return; }
+    $('lc-case-input').value = ''; $('lc-case-expected').value = '';
+    renderLcCases(r.testcases);
+    toast('已添加用例，点击「本地判题」运行', 'ok');
+  }
+
+  async function runLeetCodeTests() {
+    if (!lcDir) { toast('请先拉取题目', 'err'); return; }
+    await saveActive(false); // 先把当前 Solution 存盘，测试文件从磁盘导入
+    toast('正在本地判题…');
+    const r = await api.leetcodeRunTests(lcDir, lcLang);
+    if (r && r.ok) toast('判题结果已输出到终端窗口', 'ok');
+    else if (r && r.error) toast(r.error, 'err');
   }
 
   let currentView = 'explorer';
+  let lcDir = null, lcLang = 'java'; // LeetCode 当前题目
 
   function switchView(name, forceOpen) {
     const sidebar = $('sidebar');
@@ -453,6 +503,7 @@
     $('set-aiurl').value = settings.aiBaseUrl || '';
     $('set-aikey').value = settings.aiApiKey || '';
     $('set-aimodel').value = settings.aiModel || '';
+    $('set-leetcode').value = settings.leetcodeBaseUrl || 'https://leetcode.com';
     openModal('modal-settings');
     updateJavaStatus();
     updatePythonStatus();

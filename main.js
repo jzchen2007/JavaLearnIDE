@@ -50,7 +50,8 @@ let settings = {
   showDictByDefault: true,
   aiBaseUrl: '',
   aiApiKey: '',
-  aiModel: 'Qwen/Qwen2.5-7B-Instruct'
+  aiModel: 'Qwen/Qwen2.5-7B-Instruct',
+  leetcodeBaseUrl: 'https://leetcode.com'
 };
 let stats = null;
 let settingsTimer = null, statsTimer = null;
@@ -598,6 +599,316 @@ async function handlePetAction(action) {
   }
 }
 
+// ---------- LeetCode 集成（拉题 + 本地判题） ----------
+function leetcodeBaseUrl() {
+  return (settings.leetcodeBaseUrl || 'https://leetcode.com').replace(/\/+$/, '');
+}
+async function leetcodeGet(url) {
+  const resp = await net.fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (LiteCodeIDE)' }, signal: AbortSignal.timeout(20000) });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return await resp.json();
+}
+let leetcodeProblemsCache = null;
+async function leetcodeProblemList() {
+  if (leetcodeProblemsCache) return leetcodeProblemsCache;
+  const data = await leetcodeGet(leetcodeBaseUrl() + '/api/problems/all/');
+  const lvl = { 1: '简单', 2: '中等', 3: '困难' };
+  leetcodeProblemsCache = (data.stat_status_pairs || []).map((p) => ({
+    id: p.stat.frontend_question_id,
+    slug: p.stat.question__title_slug,
+    title: p.stat.question__title,
+    difficulty: lvl[(p.difficulty || {}).level] || ''
+  }));
+  return leetcodeProblemsCache;
+}
+async function resolveSlug(query) {
+  const q = (query || '').trim();
+  if (!q) return null;
+  const m = /problems\/([a-z0-9-]+)/i.exec(q);
+  if (m) return m[1];
+  if (/^\d+$/.test(q)) {
+    try {
+      const list = await leetcodeProblemList();
+      const found = list.find((p) => String(p.id) === q);
+      return found ? found.slug : null;
+    } catch { return null; }
+  }
+  if (/^[a-z0-9-]+$/i.test(q)) return q;
+  return null;
+}
+async function leetcodeQuestion(slug) {
+  const gql = 'query questionData($titleSlug: String!) { question(titleSlug: $titleSlug) { questionId title titleSlug difficulty content metaData codeSnippets { lang langSlug code } exampleTestcaseList } }';
+  const resp = await net.fetch(leetcodeBaseUrl() + '/graphql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 (LiteCodeIDE)' },
+    body: JSON.stringify({ query: gql, variables: { titleSlug: slug } }),
+    signal: AbortSignal.timeout(20000)
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const data = await resp.json();
+  return (data.data && data.data.question) || null;
+}
+
+function splitParams(input, count) {
+  const parts = (input || '').split('\n');
+  while (parts.length < count) parts.push('');
+  return parts;
+}
+function parseParamValue(raw, type) {
+  const s = (raw == null ? '' : String(raw)).trim();
+  if ((type || '').endsWith('[]')) {
+    try { return JSON.parse(s); } catch { try { return JSON.parse(s.replace(/'/g, '"')); } catch { return null; } }
+  }
+  switch (type) {
+    case 'integer': case 'int': case 'long': return parseInt(s, 10) || 0;
+    case 'double': case 'float': return parseFloat(s) || 0;
+    case 'boolean': case 'bool': return s === 'true';
+    case 'character': case 'char': return s.replace(/^"|"$/g, '').charAt(0) || '';
+    case 'string': default: return (s.startsWith('"') && s.endsWith('"')) ? s.slice(1, -1) : s;
+  }
+}
+function isComplexType(type) {
+  return /listnode|treenode/i.test(type || '');
+}
+function detectComplex(meta) {
+  const types = [...((meta && meta.params) || []).map((p) => p.type), (meta && meta.return && meta.return.type) || ''];
+  return types.some(isComplexType);
+}
+function javaScalar(x, base) {
+  if (x === null || x === undefined) return 'null';
+  switch (base) {
+    case 'integer': case 'int': return String(x);
+    case 'long': return String(x) + 'L';
+    case 'double': case 'float': return String(x);
+    case 'boolean': case 'bool': return x ? 'true' : 'false';
+    case 'character': case 'char': return "'" + String(x).replace(/'/g, "\\'") + "'";
+    case 'string': default: return '"' + String(x).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+  }
+}
+function javaPrimitive(base) {
+  return ({ integer: 'int', int: 'int', long: 'long', double: 'double', float: 'float', boolean: 'boolean', bool: 'boolean', character: 'char', char: 'char', string: 'String' }[base] || 'String');
+}
+function javaLiteral(v, type) {
+  if (v === null || v === undefined) return 'null';
+  const base = (type || 'string').replace(/\[\]/g, '');
+  const dims = ((type || '').match(/\[\]/g) || []).length;
+  if (dims === 0) return javaScalar(v, base);
+  const jt = javaPrimitive(base);
+  if (dims === 1) return 'new ' + jt + '[]{' + (v || []).map((x) => javaScalar(x, base)).join(', ') + '}';
+  if (dims === 2) return 'new ' + jt + '[][]{' + (v || []).map((row) => '{' + (row || []).map((x) => javaScalar(x, base)).join(', ') + '}').join(', ') + '}';
+  return 'null';
+}
+function pyLiteral(v) {
+  if (v === null || v === undefined) return 'None';
+  if (typeof v === 'boolean') return v ? 'True' : 'False';
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(pyLiteral).join(', ') + ']';
+  return JSON.stringify(v);
+}
+function javaResultPrint(expr, retType) {
+  const dims = ((retType || '').match(/\[\]/g) || []).length;
+  if (dims >= 1) return 'Arrays.toString(' + expr + ')';
+  return 'String.valueOf(' + expr + ')';
+}
+function javaResultCompare(actual, expectedLit, retType) {
+  const base = (retType || '').replace(/\[\]/g, '');
+  const dims = ((retType || '').match(/\[\]/g) || []).length;
+  if (dims >= 2) return 'Arrays.deepEquals(' + actual + ', ' + expectedLit + ')';
+  if (dims === 1) return 'Arrays.equals(' + actual + ', ' + expectedLit + ')';
+  if (base === 'string') return 'Objects.equals(' + actual + ', ' + expectedLit + ')';
+  return actual + ' == ' + expectedLit;
+}
+function genPythonTest(problem, testcases) {
+  const meta = problem.metaData || {};
+  const mname = meta.name || 'solve';
+  const params = meta.params || [];
+  const retType = (meta.return && meta.return.type) || 'string';
+  const L = [];
+  L.push('import sys, os');
+  L.push('sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))');
+  L.push('from solution import Solution');
+  L.push('');
+  L.push('if __name__ == "__main__":');
+  L.push('    s = Solution()');
+  (testcases || []).forEach((tc, i) => {
+    const inputs = splitParams(tc.input, params.length);
+    const args = params.map((p, j) => pyLiteral(parseParamValue(inputs[j], p.type))).join(', ');
+    const call = 's.' + mname + '(' + args + ')';
+    L.push('    # 用例' + (i + 1));
+    if (tc.expected != null && String(tc.expected).trim() !== '') {
+      const expLit = pyLiteral(parseParamValue(tc.expected, retType));
+      L.push('    _r = ' + call);
+      L.push('    print("[用例' + (i + 1) + '] 输出=", _r, " 期望=", ' + expLit + ', " => ", "PASS" if _r == ' + expLit + ' else "FAIL")');
+    } else {
+      L.push('    print("[用例' + (i + 1) + '] 输出=", ' + call + ')');
+    }
+  });
+  L.push('');
+  return L.join('\n');
+}
+function genJavaTest(problem, testcases) {
+  const meta = problem.metaData || {};
+  const mname = meta.name || 'solve';
+  const params = meta.params || [];
+  const retType = (meta.return && meta.return.type) || 'string';
+  const L = [];
+  L.push('import java.util.*;');
+  L.push('');
+  L.push('public class SolutionTest {');
+  L.push('    public static void main(String[] args) {');
+  L.push('        Solution s = new Solution();');
+  (testcases || []).forEach((tc, i) => {
+    const inputs = splitParams(tc.input, params.length);
+    const args = params.map((p, j) => javaLiteral(parseParamValue(inputs[j], p.type), p.type)).join(', ');
+    const call = 's.' + mname + '(' + args + ')';
+    L.push('        { // 用例' + (i + 1));
+    if (tc.expected != null && String(tc.expected).trim() !== '') {
+      const expVal = parseParamValue(tc.expected, retType);
+      const expLit = javaLiteral(expVal, retType);
+      const cmp = javaResultCompare('_r', expLit, retType);
+      const print = javaResultPrint('_r', retType);
+      const expShow = javaScalar(String(tc.expected).trim(), 'string');
+      L.push('            var _r = ' + call + ';');
+      L.push('            System.out.println("[用例' + (i + 1) + '] 输出=" + ' + print + ' + " 期望=" + ' + expShow + ' + " => " + (' + cmp + ' ? "PASS" : "FAIL"));');
+    } else {
+      const print = javaResultPrint('_r', retType);
+      L.push('            var _r = ' + call + ';');
+      L.push('            System.out.println("[用例' + (i + 1) + '] 输出=" + ' + print + ');');
+    }
+    L.push('        }');
+  });
+  L.push('    }');
+  L.push('}');
+  L.push('');
+  return L.join('\n');
+}
+function writeLeetCodeTest(dir, problem, testcases) {
+  const testFile = problem.lang === 'python' ? 'test.py' : 'SolutionTest.java';
+  const content = problem.lang === 'python' ? genPythonTest(problem, testcases) : genJavaTest(problem, testcases);
+  fs.writeFileSync(path.join(dir, testFile), content, 'utf8');
+}
+function stripHtml(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h\d|pre|blockquote)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+function defaultTemplate(lang, slug, meta) {
+  const mname = (meta && meta.name) || 'solve';
+  if (lang === 'python') return 'from typing import *\n\nclass Solution:\n    def ' + mname + '(self):\n        pass\n';
+  return 'import java.util.*;\n\nclass Solution {\n    public void ' + mname + '() {\n    }\n}\n';
+}
+function javaDefaultReturn(type) {
+  const base = (type || 'string').replace(/\[\]/g, '');
+  if ((type || '').endsWith('[]')) return 'return new ' + javaPrimitive(base) + '[0];';
+  switch (base) {
+    case 'integer': case 'int': case 'long': case 'double': case 'float': return 'return 0;';
+    case 'boolean': case 'bool': return 'return false;';
+    case 'character': case 'char': return 'return \'\\0\';';
+    case 'string': return 'return "";';
+    default: return 'return null;';
+  }
+}
+// LeetCode 模板方法体常为空（Python 空体会语法错误、Java 空体会编译错误），此处补占位返回/pass
+function fillTemplate(template, lang, meta) {
+  if (lang === 'python') {
+    if (!/^\s{8,}\S/m.test(template)) {
+      template = template.replace(/\s*$/, '') + '\n        pass\n';
+    }
+    return template;
+  }
+  if (!/return\b/.test(template)) {
+    const dr = javaDefaultReturn((meta && meta.return && meta.return.type) || '');
+    template = template.replace(/\{\s*\}/, '{\n        ' + dr + '\n    }');
+  }
+  return template;
+}
+
+let currentLeetCode = null; // { dir, lang, problem }
+
+async function leetcodeFetch(query, lang) {
+  lang = lang === 'python' ? 'python' : 'java';
+  const slug = await resolveSlug(query);
+  if (!slug) return { ok: false, error: '无法解析题目：请输入题号（如 1）或网址（含 /problems/xxx/）' };
+  let q;
+  try { q = await leetcodeQuestion(slug); } catch (e) { return { ok: false, error: '拉取题目失败：' + e.message }; }
+  if (!q) return { ok: false, error: '未找到题目：' + slug };
+
+  let meta = {};
+  try { meta = q.metaData ? JSON.parse(q.metaData) : {}; } catch {}
+
+  const wantSlug = lang === 'python' ? 'python3' : 'java';
+  const snippet = (q.codeSnippets || []).find((s) => s.langSlug === wantSlug);
+  let template = snippet ? snippet.code : defaultTemplate(lang, slug, meta);
+  if (lang === 'python') { if (!/from typing/i.test(template)) template = 'from typing import *\n\n' + template; }
+  else { if (!/import java\.util/i.test(template)) template = 'import java.util.*;\n\n' + template; }
+  template = fillTemplate(template, lang, meta);
+
+  const testcases = (q.exampleTestcaseList || []).map((input) => ({ input, expected: '' }));
+  const baseDir = projectRoot || path.join(os.homedir(), 'LiteCodeIDE', 'leetcode');
+  const dir = path.join(baseDir, slug);
+  fs.mkdirSync(dir, { recursive: true });
+
+  const problem = { title: q.title, titleSlug: slug, difficulty: q.difficulty || '', lang, metaData: meta, template };
+  fs.writeFileSync(path.join(dir, 'problem.json'), JSON.stringify({ ...problem, testcases }, null, 2), 'utf8');
+  const solFile = lang === 'python' ? 'solution.py' : 'Solution.java';
+  fs.writeFileSync(path.join(dir, solFile), template, 'utf8');
+  writeLeetCodeTest(dir, problem, testcases);
+  currentFile = path.join(dir, solFile);
+  addRecent(currentFile);
+  currentLeetCode = { dir, lang, problem };
+
+  return { ok: true, dir, solFile: path.join(dir, solFile), content: template, title: q.title, difficulty: q.difficulty, testcases, description: stripHtml(q.content), complexType: detectComplex(meta) };
+}
+
+function leetcodeAddTestCase(dir, tc) {
+  const pjPath = path.join(dir, 'problem.json');
+  let pj;
+  try { pj = JSON.parse(fs.readFileSync(pjPath, 'utf8')); } catch { return { ok: false, error: '未找到题目配置 problem.json' }; }
+  pj.testcases = pj.testcases || [];
+  pj.testcases.push({ input: String(tc.input || ''), expected: String(tc.expected || '') });
+  fs.writeFileSync(pjPath, JSON.stringify(pj, null, 2), 'utf8');
+  writeLeetCodeTest(dir, pj, pj.testcases);
+  return { ok: true, testcases: pj.testcases };
+}
+
+async function runLeetCodeTests(dir, lang) {
+  if (lang === 'python') {
+    const py = resolvePython();
+    const testFile = path.join(dir, 'test.py');
+    const chk = await runPyCompile(testFile, py.cmd, py.args);
+    if (!chk.ok) { revealErrors(chk.errors); return { ok: false, errors: chk.errors }; }
+    ensureTermWin();
+    stats.runs++; persistStats();
+    sendToTerm('term:start', { cmd: 'test.py (LeetCode)', file: testFile, lang: 'python' });
+    spawnRun(py.cmd, [...py.args, testFile], dir, { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' });
+    return { ok: true };
+  }
+  const files = collectJavaFiles(dir);
+  if (!files.length) return { ok: false, error: '目录中没有 .java 文件' };
+  const outDir = buildOutputDir(dir);
+  try { fs.rmSync(outDir, { recursive: true, force: true }); } catch {}
+  fs.mkdirSync(outDir, { recursive: true });
+  const res = await runJavac(files, outDir);
+  stats.compiles++; persistStats();
+  if (!res.ok) { revealErrors(res.errors); return { ok: false, errors: res.errors }; }
+  const main = findMainClass(files);
+  if (!main) { revealErrors([{ file: null, line: 1, col: 1, msg: 'no main', zh: '未找到测试入口', tip: '请检查是否生成了 SolutionTest.java' }]); return { ok: false, errors: [] }; }
+  ensureTermWin();
+  const bin = binDir();
+  const javaCmd = bin ? path.join(bin, 'java' + (process.platform === 'win32' ? '.exe' : '')) : 'java';
+  stats.runs++; persistStats();
+  sendToTerm('term:start', { cmd: main.fqcn + ' (LeetCode)', file: main.file, lang: 'java' });
+  spawnRun(javaCmd, ['-cp', outDir, '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', main.fqcn], dir);
+  return { ok: true };
+}
+
 // ---------- 终端窗口 ----------
 let termReady = false;
 let termQueue = [];
@@ -975,6 +1286,9 @@ function registerIpc() {
     detectedPython = await detectPython();
     return detectedPython;
   });
+  ipcMain.handle('leetcode:fetch', async (_e, { query, lang }) => await leetcodeFetch(query, lang));
+  ipcMain.handle('leetcode:addTestCase', (_e, { dir, input, expected }) => leetcodeAddTestCase(dir, { input, expected }));
+  ipcMain.handle('leetcode:runTests', async (_e, { dir, lang }) => await runLeetCodeTests(dir, lang));
 
   ipcMain.handle('file:openDialog', async () => {
     const r = await dialog.showOpenDialog(mainWin, {
@@ -1007,17 +1321,20 @@ function registerIpc() {
     return { projectRoot };
   });
 
-  ipcMain.handle('file:new', async (_e, lang) => {
-    lang = lang === 'python' ? 'python' : 'java';
-    const ext = lang === 'python' ? '.py' : '.java';
+  ipcMain.handle('file:new', async () => {
     const dir = currentFile ? path.dirname(currentFile) : (projectRoot || os.homedir());
     const r = await dialog.showSaveDialog(mainWin, {
-      title: lang === 'python' ? '新建 Python 文件' : '新建 Java 文件',
-      defaultPath: path.join(dir, lang === 'python' ? 'main.py' : 'Main.java'),
-      filters: lang === 'python' ? [{ name: 'Python 源文件', extensions: ['py'] }] : [{ name: 'Java 源文件', extensions: ['java'] }]
+      title: '新建文件',
+      defaultPath: path.join(dir, 'Main.java'),
+      filters: [
+        { name: 'Java 源文件', extensions: ['java'] },
+        { name: 'Python 源文件', extensions: ['py'] },
+        { name: '所有文件', extensions: ['*'] }
+      ]
     });
     if (r.canceled || !r.filePath) return null;
     const p = r.filePath;
+    const lang = langFor(p); // 按后缀识别 java / py
     let content;
     if (lang === 'python') {
       content = `def main():\n    print("Hello, Python!")\n\n\nif __name__ == '__main__':\n    main()\n`;

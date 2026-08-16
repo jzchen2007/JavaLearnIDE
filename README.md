@@ -4,6 +4,19 @@
 
 GitHub：<https://github.com/jzchen2007/LiteCodeIDE>
 
+## 🏆 v2.2.0 更新：LeetCode 刷题（本地判题）
+
+> v2.2.0 内置 LeetCode 刷题功能：输入题号或网址拉题、本地判题、添加测试用例。
+
+- **拉取题目**：活动栏「奖杯」图标 → 输入题号（如 `1`）或网址（`leetcode.com/problems/two-sum/`）→ 自动生成 Java/Python 代码模板 + 测试文件（示例用例）
+- **本地判题**：自动生成测试桩（解析示例用例），点击「本地判题」在本机编译运行，终端输出每个用例的 PASS/FAIL
+- **添加测试用例**：提交到 LeetCode 后，可把未通过的用例（输入 + 期望输出）粘贴进来，再本地判题调试修改题解
+- 支持整数/长整型/浮点/布尔/字符/字符串及 1D/2D 数组；链表/树类型暂不支持自动判题（可生成模板手动测试）
+- 可在 设置 → LeetCode 站点 切换 leetcode.com / leetcode.cn（力扣）
+- 「新建文件」统一为一个按钮，按后缀自动识别 Java / Python
+
+> 在线提交判题（登录后提交到 LeetCode 获取完整 verdict，含隐藏用例）将在后续版本加入。
+
 ## 🐍 v2.1.0 更新：兼容 Python 3
 
 > v2.1.0 让 IDE 同时支持 Java 与 Python 3，一套工具、两种语言。
@@ -46,7 +59,7 @@ GitHub：<https://github.com/jzchen2007/LiteCodeIDE>
 
 1. **一键编译 + 外部独立终端窗口**
    - `F5` 编译并运行，`F6` 只编译
-   - 程序输出显示在独立的"Java 运行终端"窗口，支持 Scanner / System.in 控制台输入
+   - 程序输出显示在独立的"运行终端"窗口，支持 Scanner / System.in 控制台输入
    - 运行结束显示退出码与耗时；`Shift+F5` 或终端"停止"按钮可终止程序
    - 编译依赖本机 JDK；未检测到时可在 设置 → JDK 路径 手动指定
 
@@ -71,6 +84,11 @@ GitHub：<https://github.com/jzchen2007/LiteCodeIDE>
    - 全部界面图标改为自绘线性 SVG（24x24 / 圆角 / 跟随主题），不再使用 Emoji，风格规范见 [data/ui-style.md](data/ui-style.md)
    - 全新开屏页：自绘渐变 Logo、功能卡片、入场动画
    - 交互动画：按钮按压反馈、活动栏指示条、侧边栏/弹窗/气泡过渡动画
+
+6. **LeetCode 刷题（v2.2.0）**
+   - 输入题号或网址拉取题目，自动生成 Java/Python 代码模板 + 测试文件
+   - 本地判题：自动解析示例用例，在本机编译运行并输出 PASS/FAIL
+   - 添加测试用例：粘贴未通过的用例（输入 + 期望输出）后本地复现、调试
 
 ## 🚀 运行
 
@@ -129,7 +147,7 @@ LiteCodeIDE\
 npm run dist     # 产出 dist\LiteCodeIDE-<版本>-portable.exe（免安装单文件，双击即用）
 ```
 
-- 产物：`dist\LiteCodeIDE-2.1.0-portable.exe`（约 83MB），自带 Electron 运行时，目标电脑无需安装 Node/Electron，只需 JDK（编译 Java）与 Python（运行 Python）即可。
+- 产物：`dist\LiteCodeIDE-2.2.0-portable.exe`（约 83MB），自带 Electron 运行时，目标电脑无需安装 Node/Electron，只需 JDK（编译 Java）与 Python（运行 Python）即可。
 - 内部依赖（Monaco/xterm）已离线打包进 `vendor/`，词典数据离线内置，联网仅用于 AI 检查（可选）与主动访问外部资源。
 - 便携版运行时会在系统临时目录解压，可直接复制整个 exe 分发，也可以放在任意目录双击运行（首次启动稍慢属正常解压过程）。
 
