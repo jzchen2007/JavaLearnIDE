@@ -4,7 +4,7 @@
   const api = window.api;
   // 直接在浏览器中打开 index.html 时没有 Electron 提供的 API，给出友好提示
   if (!api) {
-    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Microsoft YaHei,sans-serif;background:#1e1e1e;color:#ccc"><div style="text-align:center;line-height:2"><div style="font-size:48px">${ICON.svg('run', 'lg')}</div><div style="font-size:18px;color:#fff">这是 JavaLearnIDE 的界面文件</div><div style="font-size:13px">请运行 JavaLearnIDE.exe（或 npm start）打开应用，<br>不要直接在浏览器中打开本页面。</div></div></div>`;
+    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Microsoft YaHei,sans-serif;background:#1e1e1e;color:#ccc"><div style="text-align:center;line-height:2"><div style="font-size:48px">${ICON.svg('run', 'lg')}</div><div style="font-size:18px;color:#fff">这是轻量编程 IDE 的界面文件</div><div style="font-size:13px">请运行 LiteCodeIDE.exe（或 npm start）打开应用，<br>不要直接在浏览器中打开本页面。</div></div></div>`;
     return;
   }
   let app = null;            // app:init 数据

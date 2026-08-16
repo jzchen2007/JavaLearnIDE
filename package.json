@@ -1,6 +1,6 @@
 {
-  "name": "java-learn-ide",
-  "productName": "Java 学习 IDE",
+  "name": "lite-code-ide",
+  "productName": "轻量编程 IDE",
   "version": "2.1.0",
   "description": "面向编程初学者的轻量级学习 IDE（Electron + Monaco + JDK javac / Python3）",
   "main": "main.js",
@@ -10,8 +10,8 @@
     "dist": "node scripts/dist.js --win portable"
   },
   "build": {
-    "appId": "com.javalearn.ide",
-    "productName": "JavaLearnIDE",
+    "appId": "com.litecode.ide",
+    "productName": "LiteCodeIDE",
     "asar": false,
     "directories": {
       "output": "dist"
@@ -38,7 +38,7 @@
       "icon": "build/icon.ico"
     },
     "portable": {
-      "artifactName": "JavaLearnIDE-${version}-portable.exe"
+      "artifactName": "LiteCodeIDE-${version}-portable.exe"
     },
     "npmRebuild": false,
     "electronDownload": {

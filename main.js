@@ -1,5 +1,5 @@
 'use strict';
-// ============ Java 学习 IDE - 主进程 ============
+// ============ 轻量编程 IDE - 主进程 ============
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell, protocol, net, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -226,7 +226,7 @@ function collectPythonFiles(root) {
 }
 function buildOutputDir(root) {
   const hash = crypto.createHash('md5').update(root).digest('hex').slice(0, 8);
-  return path.join(os.tmpdir(), 'java-learn-ide', hash);
+  return path.join(os.tmpdir(), 'lite-code-ide', hash);
 }
 
 // javac 错误 → 中文解释
@@ -632,7 +632,7 @@ function createMainWindow() {
     width: settings.windowBounds?.width || 1280,
     height: settings.windowBounds?.height || 800,
     minWidth: 940, minHeight: 600,
-    title: 'Java 学习 IDE',
+    title: '轻量编程 IDE',
     backgroundColor: settings.theme === 'vs-dark' ? '#1e1e1e' : '#ffffff',
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(APP_ROOT, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -956,7 +956,7 @@ function buildMenu() {
         { label: '快捷键速查', accelerator: 'F1', click: send('shortcuts') },
         { label: '在文件管理器中显示项目目录', click: send('revealInExplorer') },
         { type: 'separator' },
-        { label: '关于 Java 学习 IDE', click: send('about') }
+        { label: '关于 轻量编程 IDE', click: send('about') }
       ]
     }
   ];

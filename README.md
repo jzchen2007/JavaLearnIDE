@@ -1,4 +1,4 @@
-# Java 学习 IDE
+# 轻量编程 IDE
 
 面向编程初学者的轻量级开发环境，支持 **Java 与 Python 3**。基于 **Electron + Monaco Editor（VS Code 同款编辑器内核）** 构建，Java 用 JDK javac、Python 用本机 Python3 解释器，界面风格参考 Visual Studio Code。
 
@@ -101,7 +101,7 @@ npm start       # 启动 IDE
 ## 📁 目录结构
 
 ```text
-JavaLearnIDE\
+LiteCodeIDE\
 ├── main.js               # 主进程：窗口、javac/java/python 调用、错误中文化、统计持久化
 ├── preload.js            # 主窗口 IPC 桥
 ├── preload-term.js       # 终端窗口 IPC 桥
@@ -126,10 +126,10 @@ JavaLearnIDE\
 ## 📦 打包免安装版
 
 ```bash
-npm run dist     # 产出 dist\JavaLearnIDE-<版本>-portable.exe（免安装单文件，双击即用）
+npm run dist     # 产出 dist\LiteCodeIDE-<版本>-portable.exe（免安装单文件，双击即用）
 ```
 
-- 产物：`dist\JavaLearnIDE-2.1.0-portable.exe`（约 83MB），自带 Electron 运行时，目标电脑无需安装 Node/Electron，只需 JDK（编译 Java）与 Python（运行 Python）即可。
+- 产物：`dist\LiteCodeIDE-2.1.0-portable.exe`（约 83MB），自带 Electron 运行时，目标电脑无需安装 Node/Electron，只需 JDK（编译 Java）与 Python（运行 Python）即可。
 - 内部依赖（Monaco/xterm）已离线打包进 `vendor/`，词典数据离线内置，联网仅用于 AI 检查（可选）与主动访问外部资源。
 - 便携版运行时会在系统临时目录解压，可直接复制整个 exe 分发，也可以放在任意目录双击运行（首次启动稍慢属正常解压过程）。
 

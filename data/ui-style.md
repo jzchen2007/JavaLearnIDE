@@ -1,4 +1,4 @@
-# Java 学习 IDE — UI 设计规范（自绘图标风格，禁止 Emoji）
+# 轻量编程 IDE — UI 设计规范（自绘图标风格，禁止 Emoji）
 
 ## 图标风格（必须遵守）
 - 自绘线性 SVG 图标库：`renderer/icons.js`（`window.ICON.svg(name, cls)`），主界面图标内联在 HTML 中
