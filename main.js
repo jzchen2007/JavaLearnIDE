@@ -713,6 +713,7 @@ function pyLiteral(v) {
 }
 function javaResultPrint(expr, retType) {
   const dims = ((retType || '').match(/\[\]/g) || []).length;
+  if (dims >= 2) return 'Arrays.deepToString(' + expr + ')';
   if (dims >= 1) return 'Arrays.toString(' + expr + ')';
   return 'String.valueOf(' + expr + ')';
 }
@@ -736,19 +737,26 @@ function genPythonTest(problem, testcases) {
   L.push('');
   L.push('if __name__ == "__main__":');
   L.push('    s = Solution()');
+  let judged = 0;
   (testcases || []).forEach((tc, i) => {
     const inputs = splitParams(tc.input, params.length);
     const args = params.map((p, j) => pyLiteral(parseParamValue(inputs[j], p.type))).join(', ');
     const call = 's.' + mname + '(' + args + ')';
+    const hasExpected = tc.expected != null && String(tc.expected).trim() !== '';
     L.push('    # 用例' + (i + 1));
-    if (tc.expected != null && String(tc.expected).trim() !== '') {
+    if (hasExpected) {
+      judged++;
       const expLit = pyLiteral(parseParamValue(tc.expected, retType));
+      const expShow = pyLiteral(String(tc.expected).trim());
       L.push('    _r = ' + call);
-      L.push('    print("[用例' + (i + 1) + '] 输出=", _r, " 期望=", ' + expLit + ', " => ", "PASS" if _r == ' + expLit + ' else "FAIL")');
+      L.push('    if _r != ' + expLit + ':');
+      L.push('        print("不通过（用例 ' + (i + 1) + '：期望=" + ' + expShow + ' + " 实际=" + str(_r) + "）")');
+      L.push('        sys.exit(1)');
     } else {
-      L.push('    print("[用例' + (i + 1) + '] 输出=", ' + call + ')');
+      L.push('    ' + call);
     }
   });
+  L.push('    print("通过（' + judged + ' 个用例）")');
   L.push('');
   return L.join('\n');
 }
@@ -763,26 +771,31 @@ function genJavaTest(problem, testcases) {
   L.push('public class SolutionTest {');
   L.push('    public static void main(String[] args) {');
   L.push('        Solution s = new Solution();');
+  let judged = 0;
   (testcases || []).forEach((tc, i) => {
     const inputs = splitParams(tc.input, params.length);
     const args = params.map((p, j) => javaLiteral(parseParamValue(inputs[j], p.type), p.type)).join(', ');
     const call = 's.' + mname + '(' + args + ')';
+    const hasExpected = tc.expected != null && String(tc.expected).trim() !== '';
     L.push('        { // 用例' + (i + 1));
-    if (tc.expected != null && String(tc.expected).trim() !== '') {
+    if (hasExpected) {
+      judged++;
       const expVal = parseParamValue(tc.expected, retType);
       const expLit = javaLiteral(expVal, retType);
       const cmp = javaResultCompare('_r', expLit, retType);
       const print = javaResultPrint('_r', retType);
-      const expShow = javaScalar(String(tc.expected).trim(), 'string');
+      const printExp = javaResultPrint(expLit, retType);
       L.push('            var _r = ' + call + ';');
-      L.push('            System.out.println("[用例' + (i + 1) + '] 输出=" + ' + print + ' + " 期望=" + ' + expShow + ' + " => " + (' + cmp + ' ? "PASS" : "FAIL"));');
+      L.push('            if (!(' + cmp + ')) {');
+      L.push('                System.out.println("不通过（用例 ' + (i + 1) + '：期望=" + ' + printExp + ' + " 实际=" + ' + print + ' + "）");');
+      L.push('                System.exit(1);');
+      L.push('            }');
     } else {
-      const print = javaResultPrint('_r', retType);
-      L.push('            var _r = ' + call + ';');
-      L.push('            System.out.println("[用例' + (i + 1) + '] 输出=" + ' + print + ');');
+      L.push('            ' + call + ';');
     }
     L.push('        }');
   });
+  L.push('        System.out.println("通过（' + judged + ' 个用例）");');
   L.push('    }');
   L.push('}');
   L.push('');
@@ -806,7 +819,7 @@ function stripHtml(html) {
 }
 function defaultTemplate(lang, slug, meta) {
   const mname = (meta && meta.name) || 'solve';
-  if (lang === 'python') return 'from typing import *\n\nclass Solution:\n    def ' + mname + '(self):\n        pass\n';
+  if (lang === 'python') return 'class Solution:\n    def ' + mname + '(self):\n        pass\n';
   return 'import java.util.*;\n\nclass Solution {\n    public void ' + mname + '() {\n    }\n}\n';
 }
 function javaDefaultReturn(type) {
@@ -820,11 +833,45 @@ function javaDefaultReturn(type) {
     default: return 'return null;';
   }
 }
-// LeetCode 模板方法体常为空（Python 空体会语法错误、Java 空体会编译错误），此处补占位返回/pass
+function pythonDefaultReturn(type) {
+  const base = (type || 'string').replace(/\[\]/g, '');
+  if ((type || '').endsWith('[]')) return 'return []';
+  switch (base) {
+    case 'integer': case 'int': case 'long': case 'double': case 'float': return 'return 0';
+    case 'boolean': case 'bool': return 'return False';
+    case 'character': case 'char': case 'string': return "return ''";
+    default: return 'return None';
+  }
+}
+// 提取描述中的期望输出（"输出：" / "Output:" 后的值），供示例用例本地判题
+function extractExpectedOutputs(content) {
+  const out = [];
+  if (!content) return out;
+  const re = /(?:输出|Output)\s*[:：]\s*<\/strong>\s*([^<\s]+)/g;
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    const v = m[1].trim();
+    if (v) out.push(v);
+  }
+  return out;
+}
+// 检测模板用到的 typing 名字，按需导入（替代 from typing import *）
+function typingNames(template) {
+  const names = new Set();
+  const re = /\b(List|Optional|Dict|Set|Tuple|Deque|DefaultDict|Counter)\b/g;
+  let m;
+  while ((m = re.exec(template || '')) !== null) names.add(m[1]);
+  return [...names];
+}
+// LeetCode 模板方法体常为空（Python 空体会语法错误、Java 空体会编译错误），此处补默认返回 + 按需导入 typing
 function fillTemplate(template, lang, meta) {
   if (lang === 'python') {
     if (!/^\s{8,}\S/m.test(template)) {
-      template = template.replace(/\s*$/, '') + '\n        pass\n';
+      template = template.replace(/\s*$/, '') + '\n        ' + pythonDefaultReturn((meta && meta.return && meta.return.type) || '') + '\n';
+    }
+    const names = typingNames(template);
+    if (names.length && !/from typing/.test(template)) {
+      template = 'from typing import ' + names.join(', ') + '\n\n' + template;
     }
     return template;
   }
@@ -866,11 +913,11 @@ async function leetcodeOpen(slug, lang) {
   const wantSlug = lang === 'python' ? 'python3' : 'java';
   const snippet = (q.codeSnippets || []).find((s) => s.langSlug === wantSlug);
   let template = snippet ? snippet.code : defaultTemplate(lang, slug, meta);
-  if (lang === 'python') { if (!/from typing/i.test(template)) template = 'from typing import *\n\n' + template; }
-  else { if (!/import java\.util/i.test(template)) template = 'import java.util.*;\n\n' + template; }
+  if (lang !== 'python' && !/import java\.util/i.test(template)) template = 'import java.util.*;\n\n' + template;
   template = fillTemplate(template, lang, meta);
 
-  const testcases = (q.exampleTestcaseList || []).map((input) => ({ input, expected: '' }));
+  const expectedList = extractExpectedOutputs(q.translatedContent || q.content);
+  const testcases = (q.exampleTestcaseList || []).map((input, i) => ({ input, expected: expectedList[i] || '' }));
   const baseDir = projectRoot || path.join(os.homedir(), 'LiteCodeIDE', 'leetcode');
   const dir = path.join(baseDir, slug);
   fs.mkdirSync(dir, { recursive: true });
