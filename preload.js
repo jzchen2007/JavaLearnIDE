@@ -6,7 +6,8 @@ contextBridge.exposeInMainWorld('api', {
   init: () => ipcRenderer.invoke('app:init'),
   getKeywords: () => ipcRenderer.invoke('keywords:get'),
   detectPython: () => ipcRenderer.invoke('python:detect'),
-  leetcodeFetch: (query, lang) => ipcRenderer.invoke('leetcode:fetch', { query, lang }),
+  leetcodeImport: (queries, lang) => ipcRenderer.invoke('leetcode:import', { queries, lang }),
+  leetcodeOpen: (slug, lang) => ipcRenderer.invoke('leetcode:open', { slug, lang }),
   leetcodeAddTestCase: (dir, tc) => ipcRenderer.invoke('leetcode:addTestCase', { dir, input: tc.input, expected: tc.expected }),
   leetcodeRunTests: (dir, lang) => ipcRenderer.invoke('leetcode:runTests', { dir, lang }),
   // 文件

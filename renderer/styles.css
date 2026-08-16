@@ -450,6 +450,26 @@ kbd {
 .lc-add button:hover { background: var(--bg-hover); }
 .lc-run { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; }
 .lc-run:hover { background: var(--accent-bright); }
+/* LeetCode 题单（侧边栏双栏） */
+#sidebar.lc-wide { width: 420px; min-width: 420px; }
+#sidebar.lc-wide .sidebar-view { width: 420px; }
+.lc-import { padding: 0 10px 10px; }
+.lc-import textarea { width: 100%; min-height: 44px; resize: vertical; padding: 6px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 12.5px; font-family: Consolas, monospace; box-sizing: border-box; }
+.lc-import textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); outline: none; }
+.lc-import-row { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
+.lc-import-row select { flex: none; width: 90px; padding: 5px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 13px; }
+.lc-import-row button { padding: 5px 14px; background: var(--accent); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.lc-import-row button:hover { background: var(--accent-bright); }
+.lc-item { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 4px; cursor: pointer; transition: background-color var(--dur) var(--ease); }
+.lc-item:hover { background: var(--bg-hover); }
+.lc-item-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-size: 12.5px; }
+.lc-diff { flex-shrink: 0; font-size: 10px; line-height: 1; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
+.lc-diff.easy { background: rgba(137,209,133,.16); color: var(--ok); }
+.lc-diff.medium { background: rgba(204,167,0,.16); color: var(--warn); }
+.lc-diff.hard { background: rgba(241,76,76,.16); color: var(--error); }
+.lc-detail-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
+.lc-detail-body { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.lc-d-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--text-bright); }
 .about-body { text-align: center; line-height: 1.9; }
 .about-body h2 { color: var(--text-bright); margin: 8px 0 4px; }
 .about-body .ver { font-size: 12px; color: var(--text-dim); }

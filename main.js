@@ -51,7 +51,7 @@ let settings = {
   aiBaseUrl: '',
   aiApiKey: '',
   aiModel: 'Qwen/Qwen2.5-7B-Instruct',
-  leetcodeBaseUrl: 'https://leetcode.com'
+  leetcodeBaseUrl: 'https://leetcode.cn'
 };
 let stats = null;
 let settingsTimer = null, statsTimer = null;
@@ -595,6 +595,11 @@ async function handlePetAction(action) {
       const res = await handleRun(currentFile);
       return res.ok ? { ok: true, text: '已开始运行，请看终端窗口～' } : { ok: false, text: '编译失败，请查看问题面板～' };
     }
+    case 'judge': {
+      if (!currentLeetCode) return { ok: false, text: '还没有打开 LeetCode 题目哦～先在「刷题」里选一题吧' };
+      const res = await runLeetCodeTests(currentLeetCode.dir, currentLeetCode.lang);
+      return res.ok ? { ok: true, text: '判题完成，请看终端窗口～' } : { ok: false, text: '判题失败，请查看问题面板～' };
+    }
     default: return { ok: false, text: '未知指令' };
   }
 }
@@ -637,7 +642,7 @@ async function resolveSlug(query) {
   return null;
 }
 async function leetcodeQuestion(slug) {
-  const gql = 'query questionData($titleSlug: String!) { question(titleSlug: $titleSlug) { questionId title titleSlug difficulty content metaData codeSnippets { lang langSlug code } exampleTestcaseList } }';
+  const gql = 'query questionData($titleSlug: String!) { question(titleSlug: $titleSlug) { questionId title titleSlug difficulty translatedTitle translatedContent content metaData codeSnippets { lang langSlug code } exampleTestcaseList } }';
   const resp = await net.fetch(leetcodeBaseUrl() + '/graphql', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 (LiteCodeIDE)' },
@@ -832,10 +837,25 @@ function fillTemplate(template, lang, meta) {
 
 let currentLeetCode = null; // { dir, lang, problem }
 
-async function leetcodeFetch(query, lang) {
+async function leetcodeImport(queries, lang) {
   lang = lang === 'python' ? 'python' : 'java';
-  const slug = await resolveSlug(query);
-  if (!slug) return { ok: false, error: '无法解析题目：请输入题号（如 1）或网址（含 /problems/xxx/）' };
+  const problems = [];
+  const errors = [];
+  for (const raw of queries) {
+    const query = (raw || '').trim();
+    if (!query) continue;
+    const slug = await resolveSlug(query);
+    if (!slug) { errors.push(query + '：无法解析'); continue; }
+    let q;
+    try { q = await leetcodeQuestion(slug); } catch { errors.push(query + '：拉取失败'); continue; }
+    if (!q) { errors.push(query + '：未找到'); continue; }
+    problems.push({ titleSlug: slug, title: q.translatedTitle || q.title, difficulty: q.difficulty || '', lang });
+  }
+  return { ok: true, problems, errors };
+}
+
+async function leetcodeOpen(slug, lang) {
+  lang = lang === 'python' ? 'python' : 'java';
   let q;
   try { q = await leetcodeQuestion(slug); } catch (e) { return { ok: false, error: '拉取题目失败：' + e.message }; }
   if (!q) return { ok: false, error: '未找到题目：' + slug };
@@ -855,7 +875,8 @@ async function leetcodeFetch(query, lang) {
   const dir = path.join(baseDir, slug);
   fs.mkdirSync(dir, { recursive: true });
 
-  const problem = { title: q.title, titleSlug: slug, difficulty: q.difficulty || '', lang, metaData: meta, template };
+  const title = q.translatedTitle || q.title;
+  const problem = { title, titleSlug: slug, difficulty: q.difficulty || '', lang, metaData: meta, template };
   fs.writeFileSync(path.join(dir, 'problem.json'), JSON.stringify({ ...problem, testcases }, null, 2), 'utf8');
   const solFile = lang === 'python' ? 'solution.py' : 'Solution.java';
   fs.writeFileSync(path.join(dir, solFile), template, 'utf8');
@@ -864,7 +885,7 @@ async function leetcodeFetch(query, lang) {
   addRecent(currentFile);
   currentLeetCode = { dir, lang, problem };
 
-  return { ok: true, dir, solFile: path.join(dir, solFile), content: template, title: q.title, difficulty: q.difficulty, testcases, description: stripHtml(q.content), complexType: detectComplex(meta) };
+  return { ok: true, dir, solFile: path.join(dir, solFile), content: template, title, difficulty: q.difficulty, testcases, description: stripHtml(q.translatedContent || q.content), complexType: detectComplex(meta) };
 }
 
 function leetcodeAddTestCase(dir, tc) {
@@ -1286,7 +1307,8 @@ function registerIpc() {
     detectedPython = await detectPython();
     return detectedPython;
   });
-  ipcMain.handle('leetcode:fetch', async (_e, { query, lang }) => await leetcodeFetch(query, lang));
+  ipcMain.handle('leetcode:import', async (_e, { queries, lang }) => await leetcodeImport(queries, lang));
+  ipcMain.handle('leetcode:open', async (_e, { slug, lang }) => await leetcodeOpen(slug, lang));
   ipcMain.handle('leetcode:addTestCase', (_e, { dir, input, expected }) => leetcodeAddTestCase(dir, { input, expected }));
   ipcMain.handle('leetcode:runTests', async (_e, { dir, lang }) => await runLeetCodeTests(dir, lang));
 

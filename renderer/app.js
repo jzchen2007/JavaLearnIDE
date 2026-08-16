@@ -20,12 +20,14 @@
   const $ = (id) => document.getElementById(id);
   const langOf = (p) => /\.py$/i.test(p || '') ? 'python' : 'java';
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const DIFF_CN = { Easy: '简单', Medium: '中等', Hard: '困难' };
 
   // ---------- 初始化 ----------
   async function init() {
     app = await api.init();
     app.python = app.python || { ok: false, version: null };
     settings = app.settings || {};
+    lcList = settings.leetcodeList || [];
     stats = app.stats || stats;
     document.body.classList.toggle('light', settings.theme === 'vs');
 
@@ -301,7 +303,7 @@
     // 活动栏
     $('act-explorer').addEventListener('click', () => switchView('explorer'));
     $('act-dict').addEventListener('click', () => switchView('dict'));
-    $('act-leetcode').addEventListener('click', () => openModal('modal-leetcode'));
+    $('act-leetcode').addEventListener('click', () => switchView('leetcode'));
     $('act-pet').addEventListener('click', () => api.togglePet());
     $('act-settings').addEventListener('click', () => openSettings());
     // 文件
@@ -371,54 +373,110 @@
     });
     window.addEventListener('beforeunload', () => flushStats());
     // LeetCode 刷题
-    $('btn-lc-fetch').addEventListener('click', fetchLeetCode);
-    $('btn-lc-addcase').addEventListener('click', addLeetCodeCase);
-    $('btn-lc-runtests').addEventListener('click', runLeetCodeTests);
-    $('lc-query').addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchLeetCode(); });
+    $('btn-lc-import').addEventListener('click', importLeetCode);
+    $('btn-lc-back').addEventListener('click', backToLeetCodeList);
+    $('lc-query').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); importLeetCode(); } });
   }
 
   // ---------- LeetCode 刷题 ----------
-  function renderLcCases(cases) {
-    const el = $('lc-cases');
-    if (!cases || !cases.length) { el.innerHTML = '<div style="color:var(--text-dim)">暂无测试用例</div>'; return; }
-    el.innerHTML = cases.map((c, i) => {
+  function renderLcList() {
+    const el = $('lc-list');
+    if (!lcList.length) {
+      el.innerHTML = '<div class="tree-empty">题单为空。在上方输入题号/网址（多个用逗号或换行分隔）后点「导入」。</div>';
+      return;
+    }
+    el.innerHTML = lcList.map((p, i) => {
+      const diff = p.difficulty ? `<span class="lc-diff ${(p.difficulty || '').toLowerCase()}">${esc(DIFF_CN[p.difficulty] || p.difficulty)}</span>` : '';
+      const lang = p.lang === 'python' ? '<span class="lang-badge py">Py3</span>' : '<span class="lang-badge java">Java</span>';
+      return `<div class="lc-item" data-i="${i}">${diff}<span class="lc-item-title">${esc(p.title)}</span>${lang}</div>`;
+    }).join('');
+    el.querySelectorAll('.lc-item').forEach((it) => {
+      it.addEventListener('click', () => openLeetCode(parseInt(it.dataset.i, 10)));
+    });
+  }
+
+  async function importLeetCode() {
+    const raw = $('lc-query').value.trim();
+    if (!raw) { toast('请输入题号或网址', 'err'); return; }
+    const queries = raw.split(/[\n,，]+/).map((s) => s.trim()).filter(Boolean);
+    const lang = $('lc-lang').value;
+    toast('正在导入题目…');
+    const r = await api.leetcodeImport(queries, lang);
+    if (!r.ok) { toast(r.error || '导入失败', 'err'); return; }
+    const existing = new Set(lcList.map((p) => p.titleSlug));
+    let added = 0;
+    for (const p of r.problems || []) {
+      if (existing.has(p.titleSlug)) continue;
+      lcList.push(p); existing.add(p.titleSlug); added++;
+    }
+    if (added) { api.setSettings({ leetcodeList: lcList }); renderLcList(); }
+    if (r.errors && r.errors.length) toast('部分题目导入失败：' + r.errors.join('；'), 'err');
+    else if (added) toast('已导入 ' + added + ' 道题', 'ok');
+    else toast('题目已在题单中', 'ok');
+    $('lc-query').value = '';
+  }
+
+  async function openLeetCode(i) {
+    const p = lcList[i];
+    if (!p) return;
+    toast('正在打开题目…');
+    const r = await api.leetcodeOpen(p.titleSlug, p.lang);
+    if (!r.ok) { toast(r.error || '打开失败', 'err'); return; }
+    lcDir = r.dir; lcLang = p.lang;
+    $('lc-panel-list').classList.add('hidden');
+    $('lc-panel-detail').classList.remove('hidden');
+    renderLcDetail(r);
+    if (r.complexType) toast('该题含链表/树类型，自动判题暂不支持，已生成代码模板', 'err');
+    await openFile(r.solFile, r.content);
+  }
+
+  function renderLcDetail(data) {
+    const el = $('lc-detail-body');
+    const diff = data.difficulty ? `<span class="lc-diff ${(data.difficulty || '').toLowerCase()}">${esc(DIFF_CN[data.difficulty] || data.difficulty)}</span>` : '';
+    const cases = (data.testcases || []).map((c, i) => {
       const exp = c.expected ? ` <span style="color:var(--ok)">期望 ${esc(c.expected)}</span>` : '';
       return `<div class="lc-case"><b>#${i + 1}</b> <code>${esc(c.input.replace(/\n/g, ' ⏎ '))}</code>${exp}</div>`;
     }).join('');
+    el.innerHTML =
+      `<div class="lc-d-title">${diff}<span>${esc(data.title)}</span></div>` +
+      `<div class="lc-desc">${esc(data.description || '（无描述）')}</div>` +
+      `<div class="lc-sub">测试用例</div><div id="lc-cases">${cases || '<div style="color:var(--text-dim)">暂无</div>'}</div>` +
+      `<div class="lc-add">` +
+        `<textarea id="lc-case-input" rows="2" placeholder="输入（多参数每行一个）"></textarea>` +
+        `<input id="lc-case-expected" type="text" placeholder="期望输出">` +
+        `<button id="btn-lc-addcase">添加</button>` +
+      `</div>` +
+      `<button id="btn-lc-runtests" class="lc-run">本地判题</button>`;
+    el.querySelector('#btn-lc-addcase').addEventListener('click', addLeetCodeCase);
+    el.querySelector('#btn-lc-runtests').addEventListener('click', runLeetCodeTests);
   }
 
-  async function fetchLeetCode() {
-    const query = $('lc-query').value.trim();
-    const lang = $('lc-lang').value;
-    if (!query) { toast('请输入题号或网址', 'err'); return; }
-    toast('正在拉取题目…');
-    const r = await api.leetcodeFetch(query, lang);
-    if (!r.ok) { toast(r.error || '拉取失败', 'err'); return; }
-    lcDir = r.dir; lcLang = lang;
-    $('lc-result').classList.remove('hidden');
-    $('lc-title').textContent = (r.difficulty ? '[' + r.difficulty + '] ' : '') + r.title;
-    $('lc-desc').textContent = r.description || '（无描述）';
-    renderLcCases(r.testcases);
-    if (r.complexType) toast('该题含链表/树类型，自动判题暂不支持，已生成代码模板，请手动编写测试', 'err');
-    else toast('已生成代码与测试，请在编辑器中完成 Solution 后点击「本地判题」', 'ok');
-    await openFile(r.solFile, r.content);
-    refreshProject();
+  function backToLeetCodeList() {
+    $('lc-panel-detail').classList.add('hidden');
+    $('lc-panel-list').classList.remove('hidden');
+    renderLcList();
   }
 
   async function addLeetCodeCase() {
-    if (!lcDir) { toast('请先拉取题目', 'err'); return; }
+    if (!lcDir) { toast('请先打开一道题', 'err'); return; }
     const input = $('lc-case-input').value;
     const expected = $('lc-case-expected').value.trim();
     if (!input.trim()) { toast('请输入测试用例输入', 'err'); return; }
     const r = await api.leetcodeAddTestCase(lcDir, { input, expected });
     if (!r.ok) { toast(r.error || '添加失败', 'err'); return; }
+    const casesEl = $('lc-cases');
+    if (casesEl) {
+      casesEl.innerHTML = r.testcases.map((c, i) => {
+        const exp = c.expected ? ` <span style="color:var(--ok)">期望 ${esc(c.expected)}</span>` : '';
+        return `<div class="lc-case"><b>#${i + 1}</b> <code>${esc(c.input.replace(/\n/g, ' ⏎ '))}</code>${exp}</div>`;
+      }).join('');
+    }
     $('lc-case-input').value = ''; $('lc-case-expected').value = '';
-    renderLcCases(r.testcases);
     toast('已添加用例，点击「本地判题」运行', 'ok');
   }
 
   async function runLeetCodeTests() {
-    if (!lcDir) { toast('请先拉取题目', 'err'); return; }
+    if (!lcDir) { toast('请先打开一道题', 'err'); return; }
     await saveActive(false); // 先把当前 Solution 存盘，测试文件从磁盘导入
     toast('正在本地判题…');
     const r = await api.leetcodeRunTests(lcDir, lcLang);
@@ -428,6 +486,7 @@
 
   let currentView = 'explorer';
   let lcDir = null, lcLang = 'java'; // LeetCode 当前题目
+  let lcList = []; // 题单
 
   function switchView(name, forceOpen) {
     const sidebar = $('sidebar');
@@ -443,7 +502,9 @@
     $('view-' + name).classList.add('active');
     $('act-' + name).classList.add('active');
     sidebar.classList.remove('collapsed');
+    sidebar.classList.toggle('lc-wide', name === 'leetcode');
     if (name === 'dict') setTimeout(() => $('dict-search').focus(), 220);
+    if (name === 'leetcode') backToLeetCodeList();
   }
 
   // 打开文件/项目时自动展开资源管理器视图

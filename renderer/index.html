@@ -63,6 +63,30 @@
         <div id="dict-list" class="sidebar-body"></div>
         <div id="dict-detail" class="dict-detail hidden"></div>
       </div>
+
+      <div id="view-leetcode" class="sidebar-view">
+        <div id="lc-panel-list">
+          <div class="sidebar-header"><span>题单</span></div>
+          <div class="lc-import">
+            <textarea id="lc-query" rows="2" placeholder="输入题号或网址，多个用逗号/换行分隔（如 1,2,3）"></textarea>
+            <div class="lc-import-row">
+              <select id="lc-lang">
+                <option value="java">Java</option>
+                <option value="python">Python3</option>
+              </select>
+              <button id="btn-lc-import">导入</button>
+            </div>
+          </div>
+          <div id="lc-list" class="sidebar-body"></div>
+        </div>
+        <div id="lc-panel-detail" class="hidden">
+          <div class="lc-detail-head">
+            <button id="btn-lc-back" class="mini-btn">← 题单</button>
+            <span>题目</span>
+          </div>
+          <div id="lc-detail-body" class="lc-detail-body"></div>
+        </div>
+      </div>
     </div>
 
     <!-- 主编辑区 -->
@@ -266,46 +290,6 @@
     </div>
   </div>
 
-  <!-- LeetCode 刷题 -->
-  <div id="modal-leetcode" class="modal hidden">
-    <div class="modal-box">
-      <div class="modal-head"><span>LeetCode 刷题</span><button class="modal-close" data-close>
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button></div>
-      <div class="modal-body">
-        <div class="setting-row">
-          <label>题号或网址</label>
-          <div class="jdk-row">
-            <input id="lc-query" type="text" placeholder="如 1，或 leetcode.com/problems/two-sum/">
-            <select id="lc-lang">
-              <option value="java">Java</option>
-              <option value="python">Python</option>
-            </select>
-            <button id="btn-lc-fetch">拉取题目</button>
-          </div>
-        </div>
-        <div id="lc-result" class="hidden">
-          <div id="lc-title" class="lc-title"></div>
-          <div id="lc-desc" class="lc-desc"></div>
-          <div class="lc-sub">测试用例</div>
-          <div id="lc-cases"></div>
-          <div class="setting-row" style="margin-top:12px;">
-            <label>添加用例</label>
-            <div class="lc-add">
-              <textarea id="lc-case-input" rows="2" placeholder="输入（多参数每行一个，如：[2,7,11,15]&#10;9）"></textarea>
-              <input id="lc-case-expected" type="text" placeholder="期望输出（如 [0,1]）">
-              <button id="btn-lc-addcase">添加</button>
-            </div>
-          </div>
-          <div class="setting-row">
-            <label></label>
-            <button id="btn-lc-runtests" class="lc-run">本地判题（运行测试）</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- 关于 -->
   <div id="modal-about" class="modal hidden">
     <div class="modal-box small">
@@ -327,7 +311,7 @@
             <path d="M40.5 21 49 32l-8.5 11" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h2>轻量编程 IDE <span class="ver">v2.2.0</span></h2>
+        <h2>轻量编程 IDE <span class="ver">v2.3.0</span></h2>
         <p>面向编程初学者的轻量级开发环境，基于 Electron + Monaco Editor 构建，支持 Java（JDK javac）与 Python 3 两种语言。</p>
         <p>功能：一键编译运行（外部独立终端）、Java + Python 双语言关键字中文词典、Tab 自动补全、实时错误波浪线、编译错误中文化、代码统计。</p>
       </div>

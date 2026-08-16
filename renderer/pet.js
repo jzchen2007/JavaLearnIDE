@@ -61,7 +61,8 @@
       const msgs = {
         check: ['菲比正在检查代码…', 'thinking'],
         compile: ['正在编译…', 'working'],
-        run: ['准备运行…', 'working']
+        run: ['准备运行…', 'working'],
+        judge: ['正在判题…', 'working']
       };
       const [m, s] = msgs[act] || ['…', 'thinking'];
       say(m, s);
