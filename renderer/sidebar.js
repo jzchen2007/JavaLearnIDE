@@ -2,7 +2,7 @@
 // ============ 侧边栏：文件树 + 关键字词典 ============
 (function () {
   let keywords = [];
-  let selectedKw = null;
+  let selectedKey = null; // kw|lang
   let onOpenFile = null;
 
   function init(opts) {
@@ -32,7 +32,7 @@
     const items = [];
     for (const f of sorted) {
       const depth = f.rel.split(/[\\/]/).length - 1;
-      const icon = f.name.endsWith('.java') ? ICON.svg('filejava', 'java') : ICON.svg('file');
+      const icon = f.lang === 'python' ? ICON.svg('filepy', 'py') : ICON.svg('filejava', 'java');
       items.push(
         `<div class="tree-item" data-path="${escapeHtml(f.path)}" style="padding-left:${10 + depth * 14}px">` +
         `${icon}<span>${escapeHtml(f.name)}</span></div>`
@@ -52,6 +52,9 @@
   }
 
   // ---------- 词典 ----------
+  function langBadge(lang) {
+    return lang === 'python' ? '<span class="lang-badge py">Py</span>' : '<span class="lang-badge java">Java</span>';
+  }
   function renderDict(query) {
     const listEl = document.getElementById('dict-list');
     const q = (query || '').trim().toLowerCase();
@@ -60,27 +63,30 @@
       items = keywords.filter((k) => k.kw.toLowerCase().includes(q) || k.cn.includes(q));
     }
     if (!items.length) {
-      listEl.innerHTML = '<div class="dict-empty">没有找到匹配的关键字，试试 class、for、static…</div>';
+      listEl.innerHTML = '<div class="dict-empty">没有找到匹配的关键字，试试 class、for、def、print…</div>';
       return;
     }
     listEl.innerHTML = items.map((k) => {
-      const sel = selectedKw === k.kw ? ' selected' : '';
-      return `<div class="dict-item${sel}" data-kw="${k.kw}"><span class="kw">${k.kw}</span><span class="cn">${escapeHtml(k.cn)}</span></div>`;
+      const key = k.kw + '|' + k.lang;
+      const sel = selectedKey === key ? ' selected' : '';
+      return `<div class="dict-item${sel}" data-kw="${escapeHtml(k.kw)}" data-lang="${k.lang}"><span class="kw">${escapeHtml(k.kw)}</span><span class="cn">${escapeHtml(k.cn)}</span>${langBadge(k.lang)}</div>`;
     }).join('');
     listEl.querySelectorAll('.dict-item').forEach((it) => {
-      it.addEventListener('click', () => showDetail(it.dataset.kw));
+      it.addEventListener('click', () => showDetail(it.dataset.kw, it.dataset.lang));
     });
   }
 
-  function showDetail(kwName) {
-    selectedKw = kwName;
-    const k = keywords.find((x) => x.kw === kwName);
+  function showDetail(kwName, langName) {
+    const k = langName
+      ? keywords.find((x) => x.kw === kwName && x.lang === langName)
+      : keywords.find((x) => x.kw === kwName);
     if (!k) return;
+    selectedKey = k.kw + '|' + k.lang;
     renderDict(document.getElementById('dict-search').value);
     const el = document.getElementById('dict-detail');
     el.classList.remove('hidden');
     el.innerHTML =
-      `<h3><span class="dd-kw">${k.kw}</span>${escapeHtml(k.cn)}</h3>` +
+      `<h3><span class="dd-kw">${escapeHtml(k.kw)}</span>${langBadge(k.lang)}<span class="dd-cn">${escapeHtml(k.cn)}</span></h3>` +
       `<div class="sec">语法用法</div><div class="usage">${escapeHtml(k.usage)}</div>` +
       `<div class="sec">说明</div><div class="desc">${escapeHtml(k.desc)}</div>` +
       `<div class="sec">示例代码</div><div class="example">${escapeHtml(k.example)}</div>` +

@@ -22,6 +22,8 @@ const ICON_DEFS = {
   folderopen: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 18l5-7 4 5 3-3 4 5"/>',
   // Java 源文件：文档 + 咖啡杯
   filejava: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 12h5v1.6a2.5 2.5 0 0 1-5 0z"/><path d="M14.5 13.4h1.2a1.3 1.3 0 0 1 0 2.6H14.5"/>',
+  // Python 源文件：文档 + 蛇形 S 曲线
+  filepy: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 15.5c0 1.2 1 1.2 1.5 1.2s1.5 0 1.5-1.2-1-1.2-1.5-1.2-1.5 0-1.5-1.2 1-1.2 1.5-1.2 1.5 0 1.5 1.2"/>',
   // 普通文件
   file: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/>',
   // 关闭

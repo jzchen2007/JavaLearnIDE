@@ -61,7 +61,8 @@
   // 开始运行：清屏，只显示本次运行的输入输出
   termApi.onStart((d) => {
     term.reset();
-    term.write('\r\n\x1b[2m>> 运行 java ' + d.cmd + '\x1b[0m\r\n');
+    const lang = d.lang === 'python' ? 'python' : 'java';
+    term.write('\r\n\x1b[2m>> 运行 ' + lang + ' ' + d.cmd + '\x1b[0m\r\n');
     term.focus();
   });
 
@@ -77,6 +78,6 @@
     term.write('\r\n\x1b[33m[已发送停止信号]\x1b[0m\r\n');
   });
 
-  term.writeln('\x1b[2mJava 运行终端 —— 这里只显示程序的输入与输出\x1b[0m');
+  term.writeln('\x1b[2m运行终端 —— 这里只显示程序的输入与输出\x1b[0m');
   term.focus();
 })();

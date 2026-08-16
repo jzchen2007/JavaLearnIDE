@@ -5,10 +5,12 @@ contextBridge.exposeInMainWorld('api', {
   // 初始化
   init: () => ipcRenderer.invoke('app:init'),
   getKeywords: () => ipcRenderer.invoke('keywords:get'),
+  detectPython: () => ipcRenderer.invoke('python:detect'),
   // 文件
   openFileDialog: () => ipcRenderer.invoke('file:openDialog'),
   openFolderDialog: () => ipcRenderer.invoke('file:openFolderDialog'),
-  newFile: () => ipcRenderer.invoke('file:new'),
+  pickExe: () => ipcRenderer.invoke('file:pickExe'),
+  newFile: (lang) => ipcRenderer.invoke('file:new', lang || 'java'),
   readFile: (p) => ipcRenderer.invoke('file:read', p),
   writeFile: (p, c) => ipcRenderer.invoke('file:write', { path: p, content: c }),
   listProject: () => ipcRenderer.invoke('project:list'),

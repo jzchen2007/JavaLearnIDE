@@ -33,8 +33,11 @@
         <div class="sidebar-header">
           <span>资源管理器</span>
           <span class="header-actions">
-            <button id="btn-newfile" title="新建文件">
+            <button id="btn-newfile" title="新建 Java 文件">
               <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 9.5v6M9 12.5h6"/></svg>
+            </button>
+            <button id="btn-newfile-py" title="新建 Python 文件">
+              <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 15.5c0 1.2 1 1.2 1.5 1.2s1.5 0 1.5-1.2-1-1.2-1.5-1.2-1.5 0-1.5-1.2 1-1.2 1.5-1.2 1.5 0 1.5 1.2"/></svg>
             </button>
             <button id="btn-openfolder" title="打开文件夹">
               <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 18l5-7 4 5 3-3 4 5"/></svg>
@@ -54,7 +57,7 @@
         <div class="dict-search-wrap">
           <div class="search-box">
             <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20.5 20.5L16 16"/></svg>
-            <input id="dict-search" type="text" placeholder="输入关键字，如 class / for / static…" spellcheck="false">
+            <input id="dict-search" type="text" placeholder="输入关键字，如 class / for / def / print…" spellcheck="false">
           </div>
         </div>
         <div id="dict-list" class="sidebar-body"></div>
@@ -85,11 +88,15 @@
               </svg>
             </div>
             <h1>Java 学习 IDE</h1>
-            <p class="welcome-sub">为大学 Java 初学者打造的轻量级开发环境</p>
+            <p class="welcome-sub">为编程初学者打造的 Java / Python 轻量级开发环境</p>
             <div class="welcome-actions">
               <button id="w-new" class="primary">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 9.5v6M9 12.5h6"/></svg>
                 新建 Java 文件
+              </button>
+              <button id="w-new-py" class="ghost">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 15.5c0 1.2 1 1.2 1.5 1.2s1.5 0 1.5-1.2-1-1.2-1.5-1.2-1.5 0-1.5-1.2 1-1.2 1.5-1.2 1.5 0 1.5 1.2"/></svg>
+                新建 Python 文件
               </button>
               <button id="w-open" class="ghost">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>
@@ -104,17 +111,17 @@
               <div class="wf-card">
                 <svg class="icon lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5l11 6.5-11 6.5z"/><path d="M4 5v14"/></svg>
                 <div class="wf-title">一键运行</div>
-                <div class="wf-desc">F5 编译并运行，错误中文提示</div>
+                <div class="wf-desc">Java / Python 一键编译运行，错误中文提示</div>
               </div>
               <div class="wf-card">
                 <svg class="icon lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>
-                <div class="wf-title">关键字词典</div>
-                <div class="wf-desc">50+ 关键字中文解释与易错点</div>
+                <div class="wf-title">双语言词典</div>
+                <div class="wf-desc">100+ Java + Python 关键字中文解释</div>
               </div>
               <div class="wf-card">
                 <svg class="icon lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4.2 10.3c-.8.7-1.2 1.4-1.2 2.2h-6c0-.8-.4-1.5-1.2-2.2A6 6 0 0 1 12 3z"/></svg>
                 <div class="wf-title">智能补全</div>
-                <div class="wf-desc">psvm / sout 按 Tab 自动补全</div>
+                <div class="wf-desc">psvm / sout / def / print 按 Tab 补全</div>
               </div>
             </div>
             <div class="welcome-tips">
@@ -228,6 +235,17 @@
           <label>JDK 状态</label>
           <span id="jdk-status">检测中…</span>
         </div>
+        <div class="setting-row">
+          <label>Python 路径（可选，留空自动搜索）</label>
+          <div class="jdk-row">
+            <input id="set-python" type="text" placeholder="如 C:\Python312\python.exe">
+            <button id="btn-python-browse">浏览…</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <label>Python 状态</label>
+          <span id="python-status">检测中…</span>
+        </div>
         <div class="setting-row"><label></label><span style="color:var(--text-dim);font-size:11px">— AI 检查（桌宠·菲比）—</span></div>
         <div class="setting-row">
           <label>AI 接口地址</label>
@@ -267,9 +285,9 @@
             <circle cx="44" cy="46" r="2" fill="#ffd166"/>
           </svg>
         </div>
-        <h2>Java 学习 IDE <span class="ver">v2.0.0</span></h2>
-        <p>面向大学 Java 初学者的轻量级开发环境，基于 Electron + Monaco Editor + JDK javac 构建。</p>
-        <p>功能：一键编译运行（外部独立终端）、关键字中文词典、Tab 自动补全、实时错误波浪线、编译错误中文化、代码统计。</p>
+        <h2>Java 学习 IDE <span class="ver">v2.1.0</span></h2>
+        <p>面向编程初学者的轻量级开发环境，基于 Electron + Monaco Editor 构建，支持 Java（JDK javac）与 Python 3 两种语言。</p>
+        <p>功能：一键编译运行（外部独立终端）、Java + Python 双语言关键字中文词典、Tab 自动补全、实时错误波浪线、编译错误中文化、代码统计。</p>
       </div>
     </div>
   </div>

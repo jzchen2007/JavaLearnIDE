@@ -10,13 +10,21 @@ const { spawn, execFile } = require('child_process');
 const APP_ROOT = __dirname;
 const DATA_DIR = () => path.join(app.getPath('userData'), 'data');
 
-// ---------- 关键字词典（离线内置） ----------
+// ---------- 关键字词典（离线内置：Java + Python） ----------
 let KEYWORDS = [];
-try {
-  KEYWORDS = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'data', 'keywords.json'), 'utf8'));
-} catch (e) {
-  console.error('[main] 加载 keywords.json 失败:', e.message);
+function loadKeywords() {
+  const out = [];
+  try {
+    const java = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'data', 'keywords.json'), 'utf8'));
+    out.push(...java.map((k) => ({ ...k, lang: 'java' })));
+  } catch (e) { console.error('[main] 加载 keywords.json 失败:', e.message); }
+  try {
+    const py = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'data', 'python-keywords.json'), 'utf8'));
+    out.push(...py.map((k) => ({ ...k, lang: 'python' })));
+  } catch (e) { console.error('[main] 加载 python-keywords.json 失败:', e.message); }
+  return out;
 }
+KEYWORDS = loadKeywords();
 
 // ---------- 状态 ----------
 let mainWin = null;
@@ -31,6 +39,8 @@ let currentFile = null;
 let runProc = null;
 let runStartTime = 0;
 let javaHome = null; // 用户自定义 JDK 路径（可选）
+let pythonHome = null; // 用户自定义 Python 解释器路径（可选）
+let detectedPython = { ok: false, version: null, cmd: 'python', args: [] }; // 自动探测结果
 let settings = {
   theme: 'vs-dark',
   fontSize: 14,
@@ -69,6 +79,7 @@ function loadSettings() {
   const s = loadJson('settings.json', null);
   if (s) settings = { ...settings, ...s };
   javaHome = settings.jdkHome || null;
+  pythonHome = settings.pythonHome || null;
 }
 function loadStats() {
   stats = loadJson('stats.json', { date: todayStr(), todayLines: 0, totalLines: 0, compiles: 0, runs: 0, history: {} });
@@ -106,6 +117,82 @@ function detectJdk() {
   });
 }
 
+// ---------- Python 探测 ----------
+function langFor(file) {
+  return /\.py$/i.test(file || '') ? 'python' : 'java';
+}
+function pythonExe() {
+  if (pythonHome) {
+    try { if (fs.statSync(pythonHome).isFile()) return pythonHome; } catch {}
+    for (const name of ['python.exe', 'python3.exe', 'python', 'python3']) {
+      const p = path.join(pythonHome, name);
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return null;
+}
+function resolvePython() {
+  const exe = pythonExe();
+  if (exe) return { cmd: exe, args: [] };
+  return { cmd: detectedPython.cmd || 'python', args: detectedPython.args || [] };
+}
+function probePython(cmd, args) {
+  return new Promise((resolve) => {
+    execFile(cmd, [...args, '--version'], { timeout: 8000, windowsHide: true }, (err, stdout, stderr) => {
+      const ver = ((stdout || '') + (stderr || '')).trim();
+      const m = /Python\s+(\d+\.\d+(?:\.\d+)?)/.exec(ver);
+      if (!err && m) return resolve({ ok: true, version: m[1], cmd, args });
+      resolve({ ok: false, version: null, cmd, args });
+    });
+  });
+}
+function scanPythonDirs() {
+  const candidates = [];
+  const bases = [];
+  const la = process.env.LOCALAPPDATA || '';
+  if (la) bases.push(path.join(la, 'Programs', 'Python'));
+  const pf = process.env['ProgramFiles'] || 'C:\\Program Files';
+  const pf86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+  bases.push(pf, pf86);
+  for (const base of bases) {
+    let entries = [];
+    try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      if (!/^[Pp]ython\d*$/.test(e.name)) continue;
+      const exe = path.join(base, e.name, 'python.exe');
+      if (fs.existsSync(exe)) candidates.push(exe);
+    }
+  }
+  // 按版本号降序（优先最新）
+  const verOf = (p) => {
+    const m = /[Pp]ython(\d)(\d+)/.exec(p);
+    return m ? parseInt(m[1], 10) * 100 + parseInt(m[2], 10) : 0;
+  };
+  candidates.sort((a, b) => verOf(b) - verOf(a));
+  return candidates[0] || null;
+}
+async function detectPython() {
+  // 1) 用户自定义路径优先
+  const exe = pythonExe();
+  if (exe) {
+    const r = await probePython(exe, []);
+    if (r.ok) return r;
+  }
+  // 2) 常见命令：python / python3 / py -3
+  for (const c of [{ cmd: 'python', args: [] }, { cmd: 'python3', args: [] }, { cmd: 'py', args: ['-3'] }]) {
+    const r = await probePython(c.cmd, c.args);
+    if (r.ok) return r;
+  }
+  // 3) 扫描常见安装目录
+  const found = scanPythonDirs();
+  if (found) {
+    const r = await probePython(found, []);
+    if (r.ok) return r;
+  }
+  return { ok: false, version: null, cmd: 'python', args: [] };
+}
+
 // ---------- 编译 ----------
 function collectJavaFiles(root) {
   const out = [];
@@ -118,6 +205,21 @@ function collectJavaFiles(root) {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) walk(full);
       else if (e.name.endsWith('.java')) out.push(full);
+    }
+  })(root);
+  return out.sort();
+}
+function collectPythonFiles(root) {
+  const out = [];
+  const skip = new Set(['.git', 'node_modules', 'out', 'build', 'target', '.idea', '.vscode', 'dist', '__pycache__', 'venv', '.venv', 'env']);
+  (function walk(dir) {
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (skip.has(e.name) || e.name.startsWith('.')) continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name.endsWith('.py')) out.push(full);
     }
   })(root);
   return out.sort();
@@ -181,6 +283,51 @@ function parseJavacErrors(stderr) {
   return errors;
 }
 
+// Python 错误 → 中文解释
+const PY_ERROR_TRANSLATIONS = [
+  { re: /SyntaxError/, zh: '语法错误', tip: '代码不符合 Python 语法，检查冒号、括号、引号是否完整。' },
+  { re: /IndentationError|TabError/, zh: '缩进错误', tip: 'Python 靠缩进划分代码块，检查缩进是否统一（建议 4 空格，勿混用 Tab）。' },
+  { re: /NameError/, zh: '名字未定义', tip: '变量/函数名未定义、拼写错误，或在使用前未赋值。' },
+  { re: /TypeError/, zh: '类型错误', tip: '操作类型不匹配，如数字与字符串相加；注意 input() 返回字符串。' },
+  { re: /ValueError/, zh: '值错误', tip: '类型正确但值非法，如 int("abc")。' },
+  { re: /ZeroDivisionError/, zh: '除零错误', tip: '除数不能为 0。' },
+  { re: /IndexError/, zh: '下标越界', tip: '列表/字符串下标超出范围，注意下标从 0 开始。' },
+  { re: /KeyError/, zh: '键不存在', tip: '字典中没有该键，可用 d.get(key, 默认值) 避免。' },
+  { re: /AttributeError/, zh: '属性不存在', tip: '对象没有该属性/方法，检查拼写或类型。' },
+  { re: /ImportError|ModuleNotFoundError/, zh: '导入失败', tip: '模块名拼写错误或未安装该模块（pip install）。' },
+  { re: /FileNotFoundError/, zh: '文件不存在', tip: '指定的文件路径不存在，检查路径是否正确。' },
+  { re: /EOFError/, zh: '输入结束', tip: 'input() 没有更多输入可读，检查是否提前结束输入。' },
+  { re: /UnicodeDecodeError|UnicodeEncodeError/, zh: '编码错误', tip: '文件编码不匹配，打开文件时指定 encoding="utf-8"。' },
+  { re: /RecursionError/, zh: '递归过深', tip: '递归缺少终止条件或层级太深。' },
+  { re: /MemoryError/, zh: '内存不足', tip: '程序占用内存过大，检查是否有无限增长的列表/循环。' }
+];
+function translatePythonError(msg) {
+  for (const t of PY_ERROR_TRANSLATIONS) {
+    if (t.re.test(msg)) return { zh: t.zh, tip: t.tip };
+  }
+  return { zh: '运行错误', tip: '请查看错误信息定位问题。' };
+}
+// 解析 Python traceback：提取出错位置与异常信息（兼容 py_compile 语法错误与运行时错误）
+function parsePythonErrors(stderr) {
+  const lines = (stderr || '').split(/\r?\n/);
+  const locs = [];
+  for (const ln of lines) {
+    const m = /^\s*File "(.+?)", line (\d+)/.exec(ln);
+    if (m) locs.push({ file: m[1], line: parseInt(m[2], 10) });
+  }
+  let msg = '';
+  for (const ln of lines) {
+    const t = ln.trim();
+    if (/^SyntaxError:\s*(.*)$/.test(t)) { msg = t; }
+    else if (/^([A-Za-z_][\w.]*(?:Error|Exception|Warning|Interrupt|Exit|Error)):\s*(.*)$/.test(t)) { msg = t; }
+    else if (/^KeyboardInterrupt$/.test(t)) { msg = t; }
+  }
+  if (!locs.length) return [];
+  const loc = locs[locs.length - 1]; // 取 traceback 最深处（通常是用户代码）
+  const t = translatePythonError(msg);
+  return [{ file: loc.file, line: loc.line, col: 1, msg: msg || '运行出错', zh: t.zh, tip: t.tip }];
+}
+
 function runJavac(files, outDir) {
   return new Promise((resolve) => {
     const bin = binDir();
@@ -208,6 +355,33 @@ async function compileFor(file, opts = {}) {
   return await runJavac(files, outDir);
 }
 
+// Python 语法检查（py_compile；-B 不写 .pyc 字节码）
+function runPyCompile(file, cmd, args) {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, [...args, '-B', '-m', 'py_compile', file], { windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', (d) => { stdout += d.toString('utf8'); });
+    child.stderr.on('data', (d) => { stderr += d.toString('utf8'); });
+    child.on('error', (err) => resolve({ ok: false, errors: [{ file, line: 1, col: 1, msg: '无法启动 Python：' + err.message, zh: 'Python 未找到', tip: '请确认已安装 Python，或在设置中指定 Python 解释器路径。' }], stdout, stderr }));
+    child.on('close', (code) => {
+      // 清理 py_compile 生成的 __pycache__（保持项目目录干净）
+      try { fs.rmSync(path.join(path.dirname(file), '__pycache__'), { recursive: true, force: true }); } catch {}
+      const errors = parsePythonErrors(stderr);
+      if (code === 0 && errors.length === 0) return resolve({ ok: true, errors: [], stdout, stderr });
+      resolve({ ok: false, errors: errors.length ? errors : [{ file, line: 1, col: 1, msg: (stderr.trim() || '语法检查失败'), zh: '编译错误', tip: '请查看错误信息。' }], stdout, stderr });
+    });
+  });
+}
+
+// 按文件类型分发编译：.py → 语法检查；否则 → javac 项目编译
+async function compileFile(file) {
+  if (langFor(file) === 'python') {
+    const py = resolvePython();
+    return await runPyCompile(file, py.cmd, py.args);
+  }
+  return await compileFor(file);
+}
+
 function findMainClass(files) {
   let fallback = null;
   for (const f of files) {
@@ -224,7 +398,51 @@ function findMainClass(files) {
   return fallback;
 }
 
+function spawnRun(cmd, args, cwd, env) {
+  runProc = spawn(cmd, args, { cwd, windowsHide: true, env: env || process.env });
+  runStartTime = Date.now();
+  if (process.env.VERIFY) {
+    runProc.stdout.on('data', (d) => {
+      console.log('[verify-run]', d.toString('utf8').trim());
+      if (process.env.VERIFY_OUT) fs.appendFileSync(process.env.VERIFY_OUT, d.toString('utf8'));
+    });
+    // 2 秒后向 stdin 注入输入，验证交互式输入
+    setTimeout(() => {
+      try { if (runProc && runProc.stdin.writable) runProc.stdin.write('李雷\n'); } catch {}
+    }, 2000);
+  }
+  runProc.stdout.on('data', (d) => sendToTerm('term:data', { data: d.toString('utf8') }));
+  runProc.stderr.on('data', (d) => sendToTerm('term:data', { data: '\x1b[31m' + d.toString('utf8') + '\x1b[0m' }));
+  runProc.on('error', (err) => {
+    sendToTerm('term:data', { data: '\r\n\x1b[31m[运行失败] 无法启动进程：' + err.message + '\x1b[0m\r\n' });
+    runProc = null;
+  });
+  runProc.on('close', (code) => {
+    const ms = Date.now() - runStartTime;
+    const sec = (ms / 1000).toFixed(2);
+    sendToTerm('term:exit', { code, ms, sec });
+    sendToTerm('term:data', { data: `\r\n\x1b[2m[进程结束] 退出码 ${code}，耗时 ${sec} 秒\x1b[0m\r\n` });
+    runProc = null;
+  });
+}
+
+async function handleRunPython(file) {
+  const py = resolvePython();
+  const chk = await runPyCompile(file, py.cmd, py.args);
+  stats.compiles++; persistStats();
+  if (!chk.ok) {
+    revealErrors(chk.errors);
+    return { ok: false, errors: chk.errors };
+  }
+  ensureTermWin();
+  stats.runs++; persistStats();
+  sendToTerm('term:start', { cmd: path.basename(file), file, lang: 'python' });
+  spawnRun(py.cmd, [...py.args, file], path.dirname(file), { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' });
+  return { ok: true };
+}
+
 async function handleRun(file) {
+  if (langFor(file) === 'python') return await handleRunPython(file);
   const root = projectRoot || path.dirname(file);
   const res = await compileFor(file, { root });
   stats.compiles++; persistStats();
@@ -250,33 +468,9 @@ async function handleRun(file) {
   const bin = binDir();
   const javaCmd = bin ? path.join(bin, 'java' + (process.platform === 'win32' ? '.exe' : '')) : 'java';
   const outDir = buildOutputDir(root);
-  runProc = spawn(javaCmd, ['-cp', outDir, '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', main.fqcn], { cwd: root, windowsHide: true });
-  runStartTime = Date.now();
-  if (process.env.VERIFY) {
-    runProc.stdout.on('data', (d) => {
-      console.log('[verify-run]', d.toString('utf8').trim());
-      if (process.env.VERIFY_OUT) fs.appendFileSync(process.env.VERIFY_OUT, d.toString('utf8'));
-    });
-    // 2 秒后向 stdin 注入输入，验证 Scanner 交互
-    setTimeout(() => {
-      try { if (runProc && runProc.stdin.writable) runProc.stdin.write('李雷\n'); } catch {}
-    }, 2000);
-  }
   stats.runs++; persistStats();
-  sendToTerm('term:start', { cmd: main.fqcn, file: main.file });
-  runProc.stdout.on('data', (d) => sendToTerm('term:data', { data: d.toString('utf8') }));
-  runProc.stderr.on('data', (d) => sendToTerm('term:data', { data: '\x1b[31m' + d.toString('utf8') + '\x1b[0m' }));
-  runProc.on('error', (err) => {
-    sendToTerm('term:data', { data: '\r\n\x1b[31m[运行失败] 无法启动 java：' + err.message + '\x1b[0m\r\n' });
-    runProc = null;
-  });
-  runProc.on('close', (code) => {
-    const ms = Date.now() - runStartTime;
-    const sec = (ms / 1000).toFixed(2);
-    sendToTerm('term:exit', { code, ms, sec });
-    sendToTerm('term:data', { data: `\r\n\x1b[2m[进程结束] 退出码 ${code}，耗时 ${sec} 秒\x1b[0m\r\n` });
-    runProc = null;
-  });
+  sendToTerm('term:start', { cmd: main.fqcn, file: main.file, lang: 'java' });
+  spawnRun(javaCmd, ['-cp', outDir, '-Dfile.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8', main.fqcn], root);
   return { ok: true };
 }
 
@@ -346,13 +540,15 @@ async function getCurrentSource() {
   } catch { return ''; }
 }
 
-// AI 检查代码（OpenAI 兼容接口：在线服务或本地 Ollama；未配置时离线 javac 兜底）
+// AI 检查代码（OpenAI 兼容接口：在线服务或本地 Ollama；未配置时离线 javac/python 兜底）
 async function aiCheckCode(code, fileName) {
   const base = (settings.aiBaseUrl || '').trim();
   const key = (settings.aiApiKey || '').trim();
   const model = (settings.aiModel || 'Qwen/Qwen2.5-7B-Instruct').trim();
-  const name = fileName ? fileName.split(/[\\/]/).pop() : 'Main.java';
-  const prompt = `你是"菲比"，一位友善的 Java 编程助教。请检查这个 Java 文件（${name}）的代码，指出：1. 语法/逻辑错误 2. 常见易错点 3. 改进建议。用中文分点回答，简洁明了，最多 6 条，不要贴整段代码。\n\n\`\`\`java\n${code.slice(0, 6000)}\n\`\`\``;
+  const lang = langFor(fileName || currentFile);
+  const langName = lang === 'python' ? 'Python' : 'Java';
+  const name = fileName ? fileName.split(/[\\/]/).pop() : (lang === 'python' ? 'main.py' : 'Main.java');
+  const prompt = `你是"菲比"，一位友善的 ${langName} 编程助教。请检查这个 ${langName} 文件（${name}）的代码，指出：1. 语法/逻辑错误 2. 常见易错点 3. 改进建议。用中文分点回答，简洁明了，最多 6 条，不要贴整段代码。\n\n\`\`\`${lang}\n${code.slice(0, 6000)}\n\`\`\``;
   if (base && key) {
     try {
       const resp = await net.fetch(base.replace(/\/+$/, '') + '/chat/completions', {
@@ -369,14 +565,14 @@ async function aiCheckCode(code, fileName) {
       return { ok: false, text: 'AI 调用出错：' + e.message };
     }
   }
-  // 离线兜底：javac 检查 + 基础统计
+  // 离线兜底：语法检查 + 基础统计
   let offline = '';
   if (code.trim()) offline += `已检查 ${name}（${code.split('\n').length} 行）。`;
-  else offline += '编辑器里还没有代码哦，先写点 Java 吧～';
+  else offline += '编辑器里还没有代码哦，先写点 ' + langName + ' 吧～';
   if (currentFile) {
-    const res = await compileFor(currentFile);
-    if (res.ok) offline += ' javac 编译通过 ✓。';
-    else offline += ' javac 发现 ' + res.errors.length + ' 个错误：' + res.errors.slice(0, 3).map((e) => `${e.line}行 ${e.zh}`).join('；') + '。';
+    const res = await compileFile(currentFile);
+    if (res.ok) offline += ' 语法检查通过 ✓。';
+    else offline += ' 发现 ' + res.errors.length + ' 个错误：' + res.errors.slice(0, 3).map((e) => `${e.line}行 ${e.zh}`).join('；') + '。';
   }
   offline += '（当前为离线检查，在 设置→AI 检查 填写接口后可启用智能检查）';
   return { ok: true, text: offline };
@@ -387,14 +583,14 @@ async function handlePetAction(action) {
   switch (action) {
     case 'check': return await aiCheckCode(src, currentFile);
     case 'compile': {
-      if (!currentFile) return { ok: false, text: '还没有打开文件哦～先打开一个 Java 文件吧' };
+      if (!currentFile) return { ok: false, text: '还没有打开文件哦～先打开一个文件吧' };
       stats.compiles++; persistStats();
-      const res = await compileFor(currentFile);
+      const res = await compileFile(currentFile);
       if (res.ok) return { ok: true, text: '编译成功 ✓' };
       return { ok: false, text: '编译失败：' + res.errors.length + ' 个错误。' + res.errors.slice(0, 3).map((e) => `${e.line}行 ${e.zh}`).join('；') + '（详情见问题面板）' };
     }
     case 'run': {
-      if (!currentFile) return { ok: false, text: '还没有打开文件哦～先打开一个 Java 文件吧' };
+      if (!currentFile) return { ok: false, text: '还没有打开文件哦～先打开一个文件吧' };
       const res = await handleRun(currentFile);
       return res.ok ? { ok: true, text: '已开始运行，请看终端窗口～' } : { ok: false, text: '编译失败，请查看问题面板～' };
     }
@@ -414,7 +610,7 @@ function ensureTermWin() {
   if (termWin && !termWin.isDestroyed()) { termWin.show(); termWin.focus(); return termWin; }
   termWin = new BrowserWindow({
     width: 760, height: 460,
-    title: 'Java 运行终端',
+    title: '运行终端',
     backgroundColor: '#1e1e1e',
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(APP_ROOT, 'preload-term.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -544,6 +740,25 @@ function createMainWindow() {
             const p2 = await mainWin.webContents.executeJavaScript(`document.getElementById('problems-panel').classList.contains('hidden')`);
             info.problemsHiddenOnSuccess = p2;
           } catch (e) { info.problemsError = e.message; }
+          // Python 兼容探测与语法检查（Python3 支持）
+          try {
+            info.python = detectedPython;
+            const pyBroken = path.join(path.dirname(demoFile), 'broken.py');
+            if (fs.existsSync(pyBroken)) {
+              const pc = await mainWin.webContents.executeJavaScript(`window.api.compile(${JSON.stringify(pyBroken)})`);
+              info.pyCompileOk = pc.ok;
+              info.pyErrors = (pc.errors || []).map((e) => `${e.line}: ${e.zh} | ${e.msg.slice(0, 60)}`);
+            }
+            const pd = await mainWin.webContents.executeJavaScript(`(async () => {
+              const ds = document.getElementById('dict-search');
+              ds.value = 'def'; ds.dispatchEvent(new Event('input'));
+              const items = [...document.querySelectorAll('.dict-item')];
+              return { count: items.length, first: (items[0] && (items[0].querySelector('.kw')||{}).textContent) || '', hasPyBadge: !!document.querySelector('.lang-badge.py') };
+            })()`);
+            info.dictPyCount = pd.count;
+            info.dictPyFirst = pd.first;
+            info.dictPyBadge = pd.hasPyBadge;
+          } catch (e) { info.pyError = e.message; }
           // 布局/样式诊断
           try {
             const css = await mainWin.webContents.executeJavaScript(`(() => {
@@ -706,7 +921,7 @@ function buildMenu() {
     {
       label: '文件',
       submenu: [
-        { label: '新建 Java 文件', accelerator: 'CmdOrCtrl+N', click: send('new') },
+        { label: '新建文件', accelerator: 'CmdOrCtrl+N', click: send('new') },
         { label: '打开文件…', accelerator: 'CmdOrCtrl+O', click: send('open') },
         { label: '打开文件夹（项目）…', accelerator: 'CmdOrCtrl+Shift+O', click: send('openFolder') },
         { type: 'separator' },
@@ -752,14 +967,19 @@ function buildMenu() {
 function registerIpc() {
   ipcMain.handle('app:init', async () => {
     const jdk = await detectJdk();
-    return { settings, stats, projectRoot, currentFile, jdk, keywordsCount: KEYWORDS.length };
+    detectedPython = await detectPython();
+    return { settings, stats, projectRoot, currentFile, jdk, python: detectedPython, keywordsCount: KEYWORDS.length };
   });
   ipcMain.handle('keywords:get', () => KEYWORDS);
+  ipcMain.handle('python:detect', async () => {
+    detectedPython = await detectPython();
+    return detectedPython;
+  });
 
   ipcMain.handle('file:openDialog', async () => {
     const r = await dialog.showOpenDialog(mainWin, {
-      title: '打开 Java 文件',
-      filters: [{ name: 'Java 源文件', extensions: ['java'] }, { name: '所有文件', extensions: ['*'] }],
+      title: '打开文件',
+      filters: [{ name: '源代码文件', extensions: ['java', 'py'] }, { name: 'Java 源文件', extensions: ['java'] }, { name: 'Python 源文件', extensions: ['py'] }, { name: '所有文件', extensions: ['*'] }],
       properties: ['openFile']
     });
     if (r.canceled || !r.filePaths[0]) return null;
@@ -767,7 +987,16 @@ function registerIpc() {
     currentFile = p;
     if (!projectRoot) projectRoot = path.dirname(p);
     addRecent(p);
-    return { path: p, content: fs.readFileSync(p, 'utf8'), projectRoot };
+    return { path: p, content: fs.readFileSync(p, 'utf8'), projectRoot, lang: langFor(p) };
+  });
+
+  ipcMain.handle('file:pickExe', async () => {
+    const r = await dialog.showOpenDialog(mainWin, {
+      title: '选择 Python 解释器',
+      filters: [{ name: '可执行文件', extensions: ['exe'] }, { name: '所有文件', extensions: ['*'] }],
+      properties: ['openFile']
+    });
+    return r.canceled ? null : r.filePaths[0];
   });
 
   ipcMain.handle('file:openFolderDialog', async () => {
@@ -778,22 +1007,29 @@ function registerIpc() {
     return { projectRoot };
   });
 
-  ipcMain.handle('file:new', async () => {
+  ipcMain.handle('file:new', async (_e, lang) => {
+    lang = lang === 'python' ? 'python' : 'java';
+    const ext = lang === 'python' ? '.py' : '.java';
     const dir = currentFile ? path.dirname(currentFile) : (projectRoot || os.homedir());
     const r = await dialog.showSaveDialog(mainWin, {
-      title: '新建 Java 文件',
-      defaultPath: path.join(dir, 'Main.java'),
-      filters: [{ name: 'Java 源文件', extensions: ['java'] }]
+      title: lang === 'python' ? '新建 Python 文件' : '新建 Java 文件',
+      defaultPath: path.join(dir, lang === 'python' ? 'main.py' : 'Main.java'),
+      filters: lang === 'python' ? [{ name: 'Python 源文件', extensions: ['py'] }] : [{ name: 'Java 源文件', extensions: ['java'] }]
     });
     if (r.canceled || !r.filePath) return null;
     const p = r.filePath;
-    const cls = path.basename(p, '.java');
-    const content = `public class ${cls} {\n    public static void main(String[] args) {\n        System.out.println("Hello, Java!");\n    }\n}\n`;
+    let content;
+    if (lang === 'python') {
+      content = `def main():\n    print("Hello, Python!")\n\n\nif __name__ == '__main__':\n    main()\n`;
+    } else {
+      const cls = path.basename(p, '.java');
+      content = `public class ${cls} {\n    public static void main(String[] args) {\n        System.out.println("Hello, Java!");\n    }\n}\n`;
+    }
     fs.writeFileSync(p, content, 'utf8');
     currentFile = p;
     if (!projectRoot) projectRoot = path.dirname(p);
     addRecent(p);
-    return { path: p, content, projectRoot };
+    return { path: p, content, projectRoot, lang };
   });
 
   ipcMain.handle('file:read', (_e, p) => fs.readFileSync(p, 'utf8'));
@@ -804,12 +1040,14 @@ function registerIpc() {
 
   ipcMain.handle('project:list', () => {
     if (!projectRoot) return { root: null, files: [] };
-    return { root: projectRoot, files: collectJavaFiles(projectRoot).map((f) => ({ path: f, name: path.basename(f), rel: path.relative(projectRoot, f) })) };
+    const java = collectJavaFiles(projectRoot).map((f) => ({ path: f, name: path.basename(f), rel: path.relative(projectRoot, f), lang: 'java' }));
+    const py = collectPythonFiles(projectRoot).map((f) => ({ path: f, name: path.basename(f), rel: path.relative(projectRoot, f), lang: 'python' }));
+    return { root: projectRoot, files: [...java, ...py] };
   });
 
   ipcMain.handle('compile', async (_e, file) => {
     stats.compiles++; persistStats();
-    const res = await compileFor(file || currentFile);
+    const res = await compileFile(file || currentFile);
     if (mainWin) mainWin.webContents.send('compile:result', { errors: res.errors });
     return res;
   });
@@ -881,6 +1119,7 @@ function registerIpc() {
   ipcMain.on('settings:set', (_e, patch) => {
     settings = { ...settings, ...patch };
     if (patch.jdkHome !== undefined) javaHome = patch.jdkHome || null;
+    if (patch.pythonHome !== undefined) pythonHome = patch.pythonHome || null;
     persistSettings();
     if (mainWin) mainWin.webContents.send('settings:changed', settings);
   });

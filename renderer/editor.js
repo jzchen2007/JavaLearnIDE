@@ -9,6 +9,14 @@
     'void','volatile','while','var','record','sealed','permits','yield','true','false','null','String','System','Scanner'
   ];
 
+  const PY_KEYWORDS = [
+    'def','return','class','if','elif','else','for','while','break','continue','pass','import','from','as',
+    'try','except','finally','raise','with','lambda','and','or','not','in','is','global','nonlocal','del',
+    'assert','yield','async','await','match','case','None','True','False','print','input','range','len',
+    'int','float','str','list','tuple','dict','set','open','enumerate','zip','map','filter','sorted','type',
+    'self','__init__','__name__','__main__'
+  ];
+
   const SNIPPETS = [
     { label: 'psvm', insert: 'public static void main(String[] args) {\n\t$0\n}', doc: 'main 方法模板' },
     { label: 'main', insert: 'public static void main(String[] args) {\n\t$0\n}', doc: 'main 方法模板' },
@@ -24,6 +32,21 @@
     { label: 'sc', insert: 'Scanner sc = new Scanner(System.in);\n$0', doc: '创建 Scanner 输入对象' },
     { label: 'printarr', insert: 'System.out.println(Arrays.toString($1));$0', doc: '打印数组' },
     { label: 'classi', insert: 'public class $1 {\n\t$0\n}', doc: '类模板' }
+  ];
+
+  const PY_SNIPPETS = [
+    { label: 'main', insert: "if __name__ == '__main__':\n\t$0", doc: '主程序入口' },
+    { label: 'def', insert: 'def $1($2):\n\t$0', doc: '函数模板' },
+    { label: 'class', insert: 'class $1:\n\tdef __init__(self):\n\t\t$0', doc: '类模板' },
+    { label: 'print', insert: 'print($0)', doc: '输出' },
+    { label: 'fori', insert: 'for $1 in range($2):\n\t$0', doc: 'for 循环' },
+    { label: 'forin', insert: 'for $1 in $2:\n\t$0', doc: 'for-in 遍历' },
+    { label: 'while', insert: 'while $1:\n\t$0', doc: 'while 循环' },
+    { label: 'ife', insert: 'if $1:\n\t$0\nelse:\n\t$2', doc: 'if-else' },
+    { label: 'elif', insert: 'elif $1:\n\t$0', doc: 'elif 分支' },
+    { label: 'trye', insert: 'try:\n\t$0\nexcept Exception as e:\n\tprint(e)', doc: 'try-except' },
+    { label: 'input', insert: '${1:x} = input("${2:请输入: }")$0', doc: '输入' },
+    { label: 'fstring', insert: "f'${1:文本}{$2}'$0", doc: 'f-string 格式化' }
   ];
 
   let editor = null;
@@ -43,6 +66,7 @@
       require.config({ paths: { vs: '../vendor/monaco/vs' } });
       require(['vs/editor/editor.main'], function () {
         registerJavaLanguage();
+        registerPythonLanguage();
         resolve(window.monaco);
       });
       setTimeout(() => reject(new Error('Monaco 加载超时')), 20000);
@@ -70,6 +94,40 @@
           });
         }
         for (const s of SNIPPETS) {
+          items.push({
+            label: s.label,
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: s.insert,
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            range,
+            detail: '代码片段',
+            documentation: s.doc
+          });
+        }
+        return { suggestions: items };
+      }
+    });
+  }
+
+  // ---------- Python 语言与补全 ----------
+  function registerPythonLanguage() {
+    const monaco = window.monaco;
+    monaco.languages.registerCompletionItemProvider('python', {
+      provideCompletionItems(model, position) {
+        const word = model.getWordUntilPosition(position);
+        const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+        const items = [];
+        for (const kw of PY_KEYWORDS) {
+          items.push({
+            label: kw,
+            kind: monaco.languages.CompletionItemKind.Keyword,
+            insertText: kw,
+            range,
+            detail: 'Python 关键字',
+            documentation: 'Tab 插入关键字'
+          });
+        }
+        for (const s of PY_SNIPPETS) {
           items.push({
             label: s.label,
             kind: monaco.languages.CompletionItemKind.Snippet,
@@ -139,6 +197,14 @@
 
   function getEditor() { return editor; }
 
+  // 根据文件类型切换编辑器语言（Python / Java）
+  function setLanguage(lang) {
+    if (!editor || !window.monaco) return;
+    const monaco = window.monaco;
+    const model = editor.getModel();
+    if (model) monaco.editor.setModelLanguage(model, lang === 'python' ? 'python' : 'java');
+  }
+
   function setValue(text) {
     if (!editor) return;
     editor.setValue(text || '');
@@ -191,7 +257,7 @@
   }
 
   window.EditorMod = {
-    loadMonaco, createEditor, getEditor, setValue, getValue,
+    loadMonaco, createEditor, getEditor, setValue, getValue, setLanguage,
     setMarkers, clearMarkers, applySettings, focus, revealLine
   };
 })();

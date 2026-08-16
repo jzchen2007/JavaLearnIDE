@@ -18,10 +18,12 @@
   let currentModel = null;
 
   const $ = (id) => document.getElementById(id);
+  const langOf = (p) => /\.py$/i.test(p || '') ? 'python' : 'java';
 
   // ---------- 初始化 ----------
   async function init() {
     app = await api.init();
+    app.python = app.python || { ok: false, version: null };
     settings = app.settings || {};
     stats = app.stats || stats;
     document.body.classList.toggle('light', settings.theme === 'vs');
@@ -55,7 +57,7 @@
         });
         if (tabs.length) activateTab(activeTab);
         else showWelcome();
-        updateJavaStatus();
+        updateRuntimeStatus();
         updateStatsBar();
       });
     }).catch((err) => {
@@ -148,9 +150,11 @@
     currentModel = t;
     renderTabs();
     EditorMod.setValue(t.content);
+    EditorMod.setLanguage(langOf(path));
     EditorMod.clearMarkers();
     $('sb-file').textContent = t.path;
     $('sb-file').title = t.path;
+    updateRuntimeStatus();
     silentCompile();
     refreshProject();
   }
@@ -188,12 +192,13 @@
     tabs.splice(idx, 1);
     if (activeTab === path) {
       activeTab = tabs.length ? tabs[Math.max(0, idx - 1)].path : null;
-      if (activeTab) { const t = tabs.find((x) => x.path === activeTab); EditorMod.setValue(t.content); EditorMod.clearMarkers(); }
-      else { EditorMod.setValue(''); showWelcome(); }
+      if (activeTab) { const t = tabs.find((x) => x.path === activeTab); EditorMod.setValue(t.content); EditorMod.setLanguage(langOf(activeTab)); EditorMod.clearMarkers(); }
+      else { EditorMod.setValue(''); EditorMod.setLanguage('java'); showWelcome(); }
     }
     renderTabs();
     $('sb-file').textContent = activeTab || '未打开文件';
     if (!tabs.length) EditorMod.clearMarkers();
+    updateRuntimeStatus();
   }
 
   function switchTabBy(step) {
@@ -223,7 +228,7 @@
 
   // ---------- 编译 / 运行 ----------
   async function compileActive(showTerminal) {
-    if (!activeTab) { toast('请先打开一个 Java 文件', 'err'); return; }
+    if (!activeTab) { toast('请先打开一个文件', 'err'); return; }
     await saveActive(false);
     toast('正在编译…');
     const res = await api.compile(activeTab);
@@ -240,7 +245,7 @@
   }
 
   async function runActive() {
-    if (!activeTab) { toast('请先打开一个 Java 文件', 'err'); return; }
+    if (!activeTab) { toast('请先打开一个文件', 'err'); return; }
     await saveActive(false);
     toast('正在编译并运行…');
     const res = await api.run(activeTab);
@@ -302,11 +307,19 @@
       const r = await api.newFile();
       if (r) { ensureExplorerOpen(); await openFile(r.path, r.content); refreshProject(); }
     });
+    $('btn-newfile-py').addEventListener('click', async () => {
+      const r = await api.newFile('python');
+      if (r) { ensureExplorerOpen(); await openFile(r.path, r.content); refreshProject(); }
+    });
     $('btn-openfolder').addEventListener('click', openFolder);
     $('btn-project-open').addEventListener('click', openFolder);
     // 欢迎页
     $('w-new').addEventListener('click', async () => {
       const r = await api.newFile();
+      if (r) { ensureExplorerOpen(); await openFile(r.path, r.content); refreshProject(); }
+    });
+    $('w-new-py').addEventListener('click', async () => {
+      const r = await api.newFile('python');
       if (r) { ensureExplorerOpen(); await openFile(r.path, r.content); refreshProject(); }
     });
     $('w-open').addEventListener('click', openFileDialog);
@@ -334,6 +347,22 @@
     $('set-fontsize').addEventListener('change', (e) => api.setSettings({ fontSize: parseInt(e.target.value, 10) || 14 }));
     $('set-font').addEventListener('change', (e) => api.setSettings({ fontFamily: e.target.value }));
     $('set-jdk').addEventListener('change', (e) => api.setSettings({ jdkHome: e.target.value.trim() || null }));
+    $('set-python').addEventListener('change', async (e) => {
+      api.setSettings({ pythonHome: e.target.value.trim() || null });
+      app.python = await api.detectPython();
+      updatePythonStatus();
+      updateRuntimeStatus();
+    });
+    $('btn-python-browse').addEventListener('click', async () => {
+      const p = await window.api.pickExe();
+      if (p) {
+        $('set-python').value = p;
+        api.setSettings({ pythonHome: p });
+        app.python = await api.detectPython();
+        updatePythonStatus();
+        updateRuntimeStatus();
+      }
+    });
     $('set-aiurl').addEventListener('change', (e) => api.setSettings({ aiBaseUrl: e.target.value.trim() }));
     $('set-aikey').addEventListener('change', (e) => api.setSettings({ aiApiKey: e.target.value.trim() }));
     $('set-aimodel').addEventListener('change', (e) => api.setSettings({ aiModel: e.target.value.trim() }));
@@ -420,11 +449,13 @@
     $('set-fontsize').value = settings.fontSize || 14;
     $('set-font').value = settings.fontFamily || "Consolas, 'Courier New', monospace";
     $('set-jdk').value = settings.jdkHome || '';
+    $('set-python').value = settings.pythonHome || '';
     $('set-aiurl').value = settings.aiBaseUrl || '';
     $('set-aikey').value = settings.aiApiKey || '';
     $('set-aimodel').value = settings.aiModel || '';
     openModal('modal-settings');
     updateJavaStatus();
+    updatePythonStatus();
   }
 
   async function updateJavaStatus() {
@@ -436,6 +467,29 @@
     } else {
       $('sb-java').textContent = '未检测到 JDK';
       if (el) { el.innerHTML = `${ICON.svg('error')} 未检测到 javac，请在下方设置 JDK 路径（bin 目录的上级）`; el.className = 'err'; }
+    }
+  }
+
+  async function updatePythonStatus() {
+    if (!app) return;
+    const el = $('python-status');
+    const py = app.python || {};
+    if (py.ok) {
+      if (el) { el.innerHTML = `${ICON.svg('check')} 已检测到 Python ${py.version}`; el.className = 'ok'; }
+    } else {
+      if (el) { el.innerHTML = `${ICON.svg('error')} 未检测到 Python，请在下方指定解释器路径`; el.className = 'err'; }
+    }
+  }
+
+  // 状态栏运行时状态：根据当前文件语言显示 JDK / Python
+  function updateRuntimeStatus() {
+    if (!app) return;
+    const lang = activeTab ? langOf(activeTab) : 'java';
+    if (lang === 'python') {
+      const py = app.python || {};
+      $('sb-java').textContent = py.ok ? 'Python ' + py.version : '未检测到 Python';
+    } else {
+      $('sb-java').textContent = app.jdk.ok ? 'JDK ' + app.jdk.version : '未检测到 JDK';
     }
   }
 

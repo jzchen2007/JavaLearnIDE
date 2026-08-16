@@ -1,8 +1,18 @@
 # Java 学习 IDE
 
-面向大学 Java 初学者的轻量级开发环境。基于 **Electron + Monaco Editor（VS Code 同款编辑器内核）+ JDK javac** 构建，界面风格参考 Visual Studio Code。
+面向编程初学者的轻量级开发环境，支持 **Java 与 Python 3**。基于 **Electron + Monaco Editor（VS Code 同款编辑器内核）** 构建，Java 用 JDK javac、Python 用本机 Python3 解释器，界面风格参考 Visual Studio Code。
 
 GitHub：<https://github.com/jzchen2007/JavaLearnIDE>
+
+## 🐍 v2.1.0 更新：兼容 Python 3
+
+> v2.1.0 让 IDE 同时支持 Java 与 Python 3，一套工具、两种语言。
+
+- **自动搜索 Python 路径**：启动时自动探测（自定义路径 → `python` → `python3` → `py -3` → 常见安装目录），未检测到时可在 设置 → Python 路径 手动指定
+- **Python 一键编译运行**：`.py` 文件做语法检查（`py_compile`，不残留 `__pycache__`）+ 直接运行，输出进入同一独立终端；Python 报错（SyntaxError / NameError / TypeError / IndexError…）自动翻译为中文
+- **字典新增 Python 关键字**：词典侧边栏内置 Java + Python 双语言关键字（def / print / for / lambda / with 等 100+ 条），每条带语言徽标、中文解释、示例与易错点
+- **编辑器自动识别语言**：打开 `.py` 文件自动切换 Python 语法高亮与补全（`main` / `def` / `print` / `fori` 等代码片段 + 关键字联想）
+- 文件树同时列出 `.java` 与 `.py`，新建文件支持 Java / Python 两种模板；桌宠 AI 检查自动识别当前语言
 
 ## 🐾 v2.0.0 大版本：桌宠「菲比」
 
@@ -40,9 +50,9 @@ GitHub：<https://github.com/jzchen2007/JavaLearnIDE>
    - 运行结束显示退出码与耗时；`Shift+F5` 或终端"停止"按钮可终止程序
    - 编译依赖本机 JDK；未检测到时可在 设置 → JDK 路径 手动指定
 
-2. **关键字词典侧边栏（离线内置）**
+2. **关键字词典侧边栏（离线内置，Java + Python 双语言）**
    - 左侧功能栏点击词典图标展开词典（再点收起），输入关键字即可查看：语法用法、中文说明、示例代码、易错点
-   - 内置 50+ 个 Java 关键字（含 var / record / sealed 等新特性）
+   - 内置 100+ 个关键字：Java（含 var / record / sealed 等新特性）+ Python 3（含 def / lambda / with / f-string 等），每条带语言徽标
 
 3. **VS Code 风格编辑器**
    - 语法高亮、括号自动配对、自动缩进
@@ -64,7 +74,7 @@ GitHub：<https://github.com/jzchen2007/JavaLearnIDE>
 
 ## 🚀 运行
 
-要求：已安装 Node.js（≥18）与 JDK（≥17，javac 需在 PATH 中，或在应用"设置"里指定 JDK 路径）。
+要求：已安装 Node.js（≥18）；Java 开发需 JDK（≥17，javac 在 PATH 中或在"设置"里指定），Python 开发需 Python 3（自动搜索，或在"设置"里指定解释器路径）。
 
 ```bash
 npm install     # 安装依赖（首次需下载 Electron，可设 ELECTRON_MIRROR 加速）
@@ -92,12 +102,13 @@ npm start       # 启动 IDE
 
 ```text
 JavaLearnIDE\
-├── main.js               # 主进程：窗口、javac/java 调用、错误中文化、统计持久化
+├── main.js               # 主进程：窗口、javac/java/python 调用、错误中文化、统计持久化
 ├── preload.js            # 主窗口 IPC 桥
 ├── preload-term.js       # 终端窗口 IPC 桥
 ├── preload-pet.js        # 桌宠窗口 IPC 桥
 ├── data/
-│   ├── keywords.json     # 关键字词典（中文解释/用法/示例/易错点）
+│   ├── keywords.json     # Java 关键字词典（中文解释/用法/示例/易错点）
+│   ├── python-keywords.json  # Python 关键字词典
 │   └── ui-style.md       # UI 设计规范（图标风格）
 ├── renderer/             # 渲染进程
 │   ├── icons.js          # 自绘线性 SVG 图标库
@@ -118,7 +129,7 @@ JavaLearnIDE\
 npm run dist     # 产出 dist\JavaLearnIDE-<版本>-portable.exe（免安装单文件，双击即用）
 ```
 
-- 产物：`dist\JavaLearnIDE-2.0.0-portable.exe`（约 83MB），自带 Electron 运行时，目标电脑无需安装 Node/Electron，只需 JDK 即可编译运行 Java。
+- 产物：`dist\JavaLearnIDE-2.1.0-portable.exe`（约 83MB），自带 Electron 运行时，目标电脑无需安装 Node/Electron，只需 JDK（编译 Java）与 Python（运行 Python）即可。
 - 内部依赖（Monaco/xterm）已离线打包进 `vendor/`，词典数据离线内置，联网仅用于 AI 检查（可选）与主动访问外部资源。
 - 便携版运行时会在系统临时目录解压，可直接复制整个 exe 分发，也可以放在任意目录双击运行（首次启动稍慢属正常解压过程）。
 
@@ -135,6 +146,7 @@ $env:VERIFY="1"; $env:VERIFY_FILE="C:\path\Hello.java"; node scripts/launch.js
 ## ⚠️ 已知说明
 
 - JDK 探测失败时，可在 设置 → JDK 路径 中手动指定（如 `C:\Program Files\Java\jdk-21`）。
-- 运行 java 时已显式设置 `stdout/stderr.encoding=UTF-8`，保证中文输出在终端中正常显示。
-- 单文件也可直接使用：打开单个 .java 文件时，以该文件所在目录作为编译项目。
+- Python 未自动检测到时，可在 设置 → Python 路径 中手动指定解释器（如 `C:\Python312\python.exe`）。
+- 运行 java 时已显式设置 `stdout/stderr.encoding=UTF-8`，运行 Python 时已启用 UTF-8 模式（`PYTHONUTF8`），保证中文输出在终端中正常显示。
+- 单文件也可直接使用：打开单个 .java / .py 文件时，以该文件所在目录作为编译项目。
 - AI 密钥仅保存在本机用户配置目录，不会随应用分发。
