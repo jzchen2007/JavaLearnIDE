@@ -390,6 +390,28 @@
     $('btn-lc-rename-cancel').addEventListener('click', cancelRename);
     $('lc-rename-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmRename(); else if (e.key === 'Escape') cancelRename(); });
     $('lc-query').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); importLeetCode(); } });
+    // 双栏宽度可拖拽调节（仅 LeetCode 刷题时）
+    let lcResizing = false, lcStartX = 0, lcStartW = 0;
+    $('lc-resizer').addEventListener('mousedown', (e) => {
+      lcResizing = true;
+      lcStartX = e.clientX;
+      lcStartW = $('sidebar').getBoundingClientRect().width;
+      $('lc-resizer').classList.add('dragging');
+      document.body.classList.add('lc-resizing');
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!lcResizing) return;
+      const w = Math.min(760, Math.max(360, lcStartW + (e.clientX - lcStartX)));
+      $('sidebar').style.width = w + 'px';
+      $('sidebar').style.minWidth = w + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (!lcResizing) return;
+      lcResizing = false;
+      $('lc-resizer').classList.remove('dragging');
+      document.body.classList.remove('lc-resizing');
+    });
   }
 
   // ---------- LeetCode 刷题 ----------
@@ -593,6 +615,7 @@
     $('act-' + name).classList.add('active');
     sidebar.classList.remove('collapsed');
     sidebar.classList.toggle('lc-wide', name === 'leetcode');
+    if (name !== 'leetcode') { sidebar.style.width = ''; sidebar.style.minWidth = ''; }
     if (name === 'dict') setTimeout(() => $('dict-search').focus(), 220);
     if (name === 'leetcode') backToLeetCodeList();
   }
