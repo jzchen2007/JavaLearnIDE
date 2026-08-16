@@ -67,6 +67,23 @@
       <div id="view-leetcode" class="sidebar-view">
         <div id="lc-panel-list">
           <div class="sidebar-header"><span>题单</span></div>
+          <div class="lc-lists-bar">
+            <select id="lc-lists" title="选择题单"></select>
+            <button id="btn-lc-newlist" class="mini-btn" title="新建题单">
+              <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button id="btn-lc-rename" class="mini-btn" title="重命名题单">
+              <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+            </button>
+            <button id="btn-lc-dellist" class="mini-btn" title="删除题单">
+              <svg class="icon sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>
+            </button>
+          </div>
+          <div id="lc-rename-row" class="hidden">
+            <input id="lc-rename-input" type="text" placeholder="题单名称" spellcheck="false">
+            <button id="btn-lc-rename-ok" class="mini-btn">保存</button>
+            <button id="btn-lc-rename-cancel" class="mini-btn">取消</button>
+          </div>
           <div class="lc-import">
             <textarea id="lc-query" rows="2" placeholder="输入题号或网址，多个用逗号/换行分隔（如 1,2,3）"></textarea>
             <div class="lc-import-row">
@@ -311,7 +328,7 @@
             <path d="M40.5 21 49 32l-8.5 11" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h2>轻量编程 IDE <span class="ver">v2.3.0</span></h2>
+        <h2>轻量编程 IDE <span class="ver">v2.4.0</span></h2>
         <p>面向编程初学者的轻量级开发环境，基于 Electron + Monaco Editor 构建，支持 Java（JDK javac）与 Python 3 两种语言。</p>
         <p>功能：一键编译运行（外部独立终端）、Java + Python 双语言关键字中文词典、Tab 自动补全、实时错误波浪线、编译错误中文化、代码统计。</p>
       </div>

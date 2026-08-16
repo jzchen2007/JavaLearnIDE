@@ -467,6 +467,16 @@ kbd {
 .lc-diff.easy { background: rgba(137,209,133,.16); color: var(--ok); }
 .lc-diff.medium { background: rgba(204,167,0,.16); color: var(--warn); }
 .lc-diff.hard { background: rgba(241,76,76,.16); color: var(--error); }
+.lc-lists-bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px 4px; }
+.lc-lists-bar select { flex: 1; min-width: 0; padding: 5px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 13px; }
+.lc-lists-bar .mini-btn { flex-shrink: 0; }
+#lc-rename-row { display: flex; align-items: center; gap: 6px; padding: 4px 10px 8px; }
+#lc-rename-row input { flex: 1; min-width: 0; padding: 5px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 13px; }
+#lc-rename-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); outline: none; }
+.lc-item .lc-del { flex-shrink: 0; background: transparent; border: none; color: var(--text-dim); cursor: pointer; padding: 2px; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; opacity: .45; transition: opacity var(--dur) var(--ease), color var(--dur) var(--ease); }
+.lc-item:hover .lc-del { opacity: 1; }
+.lc-item .lc-del:hover { color: var(--error); background: var(--bg-hover); }
+.lc-item .lc-del .icon { width: 13px; height: 13px; }
 .lc-detail-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
 .lc-detail-body { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .lc-d-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--text-bright); }

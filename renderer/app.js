@@ -27,7 +27,14 @@
     app = await api.init();
     app.python = app.python || { ok: false, version: null };
     settings = app.settings || {};
-    lcList = settings.leetcodeList || [];
+    lcLists = settings.leetcodeLists || [];
+    lcActiveId = settings.leetcodeActiveId;
+    // 迁移旧版单题单格式
+    if (!lcLists.length && settings.leetcodeList && settings.leetcodeList.length) {
+      lcLists = [{ id: 'default', name: '默认题单', problems: settings.leetcodeList }];
+    }
+    if (!lcLists.length) lcLists = [{ id: 'default', name: '默认题单', problems: [] }];
+    if (lcActiveId == null || !lcLists.find((l) => l.id === lcActiveId)) lcActiveId = lcLists[0].id;
     stats = app.stats || stats;
     document.body.classList.toggle('light', settings.theme === 'vs');
 
@@ -375,27 +382,107 @@
     // LeetCode 刷题
     $('btn-lc-import').addEventListener('click', importLeetCode);
     $('btn-lc-back').addEventListener('click', backToLeetCodeList);
+    $('lc-lists').addEventListener('change', switchLcList);
+    $('btn-lc-newlist').addEventListener('click', createLcList);
+    $('btn-lc-rename').addEventListener('click', renameLcList);
+    $('btn-lc-dellist').addEventListener('click', deleteLcList);
+    $('btn-lc-rename-ok').addEventListener('click', confirmRename);
+    $('btn-lc-rename-cancel').addEventListener('click', cancelRename);
+    $('lc-rename-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmRename(); else if (e.key === 'Escape') cancelRename(); });
     $('lc-query').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); importLeetCode(); } });
   }
 
   // ---------- LeetCode 刷题 ----------
+  function getActiveList() {
+    return lcLists.find((l) => l.id === lcActiveId) || lcLists[0] || null;
+  }
+  function persistLists() {
+    api.setSettings({ leetcodeLists: lcLists, leetcodeActiveId: lcActiveId });
+  }
+  function renderLcLists() {
+    const sel = $('lc-lists');
+    sel.innerHTML = lcLists.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+    sel.value = String(lcActiveId != null ? lcActiveId : '');
+  }
+  function switchLcList() {
+    lcActiveId = $('lc-lists').value;
+    persistLists();
+    renderLcList();
+  }
+  function createLcList() {
+    const id = Date.now().toString();
+    let n = lcLists.length + 1;
+    let name = '新题单 ' + n;
+    while (lcLists.some((l) => l.name === name)) { n++; name = '新题单 ' + n; }
+    lcLists.push({ id, name, problems: [] });
+    lcActiveId = id;
+    persistLists();
+    renderLcLists();
+    renderLcList();
+  }
+  function renameLcList() {
+    const list = getActiveList();
+    if (!list) return;
+    $('lc-rename-input').value = list.name;
+    $('lc-rename-row').classList.remove('hidden');
+    $('lc-rename-input').focus();
+  }
+  function confirmRename() {
+    const list = getActiveList();
+    const name = $('lc-rename-input').value.trim();
+    if (list && name) { list.name = name; persistLists(); renderLcLists(); }
+    $('lc-rename-row').classList.add('hidden');
+  }
+  function cancelRename() {
+    $('lc-rename-row').classList.add('hidden');
+  }
+  function deleteLcList() {
+    if (lcLists.length <= 1) { toast('至少保留一个题单', 'err'); return; }
+    const idx = lcLists.findIndex((l) => l.id === lcActiveId);
+    if (idx < 0) return;
+    lcLists.splice(idx, 1);
+    lcActiveId = lcLists[Math.max(0, idx - 1)].id;
+    persistLists();
+    renderLcLists();
+    renderLcList();
+  }
+  function deleteLcProblem(i) {
+    const list = getActiveList();
+    if (!list) return;
+    list.problems.splice(i, 1);
+    persistLists();
+    renderLcList();
+  }
+
   function renderLcList() {
     const el = $('lc-list');
-    if (!lcList.length) {
-      el.innerHTML = '<div class="tree-empty">题单为空。在上方输入题号/网址（多个用逗号或换行分隔）后点「导入」。</div>';
+    const list = getActiveList();
+    if (!list || !list.problems.length) {
+      el.innerHTML = '<div class="tree-empty">当前题单为空。在上方输入题号/网址（多个用逗号或换行分隔）后点「导入」。</div>';
       return;
     }
-    el.innerHTML = lcList.map((p, i) => {
+    el.innerHTML = list.problems.map((p, i) => {
       const diff = p.difficulty ? `<span class="lc-diff ${(p.difficulty || '').toLowerCase()}">${esc(DIFF_CN[p.difficulty] || p.difficulty)}</span>` : '';
       const lang = p.lang === 'python' ? '<span class="lang-badge py">Py3</span>' : '<span class="lang-badge java">Java</span>';
-      return `<div class="lc-item" data-i="${i}">${diff}<span class="lc-item-title">${esc(p.title)}</span>${lang}</div>`;
+      return `<div class="lc-item" data-i="${i}">${diff}<span class="lc-item-title">${esc(p.title)}</span>${lang}<button class="lc-del" title="删除" data-i="${i}">${ICON.svg('close')}</button></div>`;
     }).join('');
     el.querySelectorAll('.lc-item').forEach((it) => {
-      it.addEventListener('click', () => openLeetCode(parseInt(it.dataset.i, 10)));
+      it.addEventListener('click', (ev) => {
+        if (ev.target.closest('.lc-del')) return;
+        openLeetCode(parseInt(it.dataset.i, 10));
+      });
+    });
+    el.querySelectorAll('.lc-del').forEach((b) => {
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        deleteLcProblem(parseInt(b.dataset.i, 10));
+      });
     });
   }
 
   async function importLeetCode() {
+    const list = getActiveList();
+    if (!list) { toast('请先创建一个题单', 'err'); return; }
     const raw = $('lc-query').value.trim();
     if (!raw) { toast('请输入题号或网址', 'err'); return; }
     const queries = raw.split(/[\n,，]+/).map((s) => s.trim()).filter(Boolean);
@@ -403,13 +490,13 @@
     toast('正在导入题目…');
     const r = await api.leetcodeImport(queries, lang);
     if (!r.ok) { toast(r.error || '导入失败', 'err'); return; }
-    const existing = new Set(lcList.map((p) => p.titleSlug));
+    const existing = new Set(list.problems.map((p) => p.titleSlug));
     let added = 0;
     for (const p of r.problems || []) {
       if (existing.has(p.titleSlug)) continue;
-      lcList.push(p); existing.add(p.titleSlug); added++;
+      list.problems.push(p); existing.add(p.titleSlug); added++;
     }
-    if (added) { api.setSettings({ leetcodeList: lcList }); renderLcList(); }
+    if (added) { persistLists(); renderLcList(); }
     if (r.errors && r.errors.length) toast('部分题目导入失败：' + r.errors.join('；'), 'err');
     else if (added) toast('已导入 ' + added + ' 道题', 'ok');
     else toast('题目已在题单中', 'ok');
@@ -417,7 +504,8 @@
   }
 
   async function openLeetCode(i) {
-    const p = lcList[i];
+    const list = getActiveList();
+    const p = list && list.problems[i];
     if (!p) return;
     toast('正在打开题目…');
     const r = await api.leetcodeOpen(p.titleSlug, p.lang);
@@ -454,6 +542,7 @@
   function backToLeetCodeList() {
     $('lc-panel-detail').classList.add('hidden');
     $('lc-panel-list').classList.remove('hidden');
+    renderLcLists();
     renderLcList();
   }
 
@@ -486,7 +575,8 @@
 
   let currentView = 'explorer';
   let lcDir = null, lcLang = 'java'; // LeetCode 当前题目
-  let lcList = []; // 题单
+  let lcLists = [];       // 题单列表 [{ id, name, problems }]
+  let lcActiveId = null;  // 当前题单 id
 
   function switchView(name, forceOpen) {
     const sidebar = $('sidebar');
