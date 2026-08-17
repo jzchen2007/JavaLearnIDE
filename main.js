@@ -916,23 +916,46 @@ async function leetcodeOpen(slug, lang) {
   if (lang !== 'python' && !/import java\.util/i.test(template)) template = 'import java.util.*;\n\n' + template;
   template = fillTemplate(template, lang, meta);
 
-  const expectedList = extractExpectedOutputs(q.translatedContent || q.content);
-  const testcases = (q.exampleTestcaseList || []).map((input, i) => ({ input, expected: expectedList[i] || '' }));
   const baseDir = projectRoot || path.join(os.homedir(), 'LiteCodeIDE', 'leetcode');
   const dir = path.join(baseDir, slug);
   fs.mkdirSync(dir, { recursive: true });
 
   const title = q.translatedTitle || q.title;
   const problem = { title, titleSlug: slug, difficulty: q.difficulty || '', lang, metaData: meta, template };
-  fs.writeFileSync(path.join(dir, 'problem.json'), JSON.stringify({ ...problem, testcases }, null, 2), 'utf8');
   const solFile = lang === 'python' ? 'solution.py' : 'Solution.java';
-  fs.writeFileSync(path.join(dir, solFile), template, 'utf8');
+  const solPath = path.join(dir, solFile);
+
+  // 保留已有 solution（用户代码）与 problem.json（用户添加的测试用例），避免重新打开覆盖丢失
+  let testcases = [];
+  try {
+    const old = JSON.parse(fs.readFileSync(path.join(dir, 'problem.json'), 'utf8'));
+    if (Array.isArray(old.testcases)) testcases = old.testcases;
+  } catch {}
+
+  let solutionContent;
+  if (fs.existsSync(solPath)) {
+    solutionContent = fs.readFileSync(solPath, 'utf8');
+  } else {
+    solutionContent = template;
+    fs.writeFileSync(solPath, template, 'utf8');
+  }
+
+  // 合并示例用例：只补充缺失的，并给已存在但无期望输出的示例补上期望
+  const expectedList = extractExpectedOutputs(q.translatedContent || q.content);
+  const samples = (q.exampleTestcaseList || []).map((input, i) => ({ input, expected: expectedList[i] || '' }));
+  for (const s of samples) {
+    const idx = testcases.findIndex((t) => t.input === s.input);
+    if (idx < 0) testcases.push(s);
+    else if (!testcases[idx].expected && s.expected) testcases[idx].expected = s.expected;
+  }
+
+  fs.writeFileSync(path.join(dir, 'problem.json'), JSON.stringify({ ...problem, testcases }, null, 2), 'utf8');
   writeLeetCodeTest(dir, problem, testcases);
-  currentFile = path.join(dir, solFile);
+  currentFile = solPath;
   addRecent(currentFile);
   currentLeetCode = { dir, lang, problem };
 
-  return { ok: true, dir, solFile: path.join(dir, solFile), content: template, title, difficulty: q.difficulty, testcases, description: stripHtml(q.translatedContent || q.content), complexType: detectComplex(meta) };
+  return { ok: true, dir, solFile: solPath, content: solutionContent, title, difficulty: q.difficulty, testcases, description: stripHtml(q.translatedContent || q.content), complexType: detectComplex(meta) };
 }
 
 function leetcodeAddTestCase(dir, tc) {

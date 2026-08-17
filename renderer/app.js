@@ -158,11 +158,19 @@
   function activateTab(path) {
     const t = tabs.find((x) => x.path === path);
     if (!t) return;
+    // 切换前先把当前编辑器内容同步回当前标签，避免未保存的修改丢失
+    const same = activeTab === path;
+    if (activeTab && !same) {
+      const cur = tabs.find((x) => x.path === activeTab);
+      if (cur) cur.content = EditorMod.getValue();
+    }
     activeTab = path;
     currentModel = t;
     renderTabs();
-    EditorMod.setValue(t.content);
-    EditorMod.setLanguage(langOf(path));
+    if (!same) {
+      EditorMod.setValue(t.content);
+      EditorMod.setLanguage(langOf(path));
+    }
     EditorMod.clearMarkers();
     $('sb-file').textContent = t.path;
     $('sb-file').title = t.path;
@@ -201,6 +209,12 @@
   function closeTab(path) {
     const idx = tabs.findIndex((t) => t.path === path);
     if (idx < 0) return;
+    const closing = tabs[idx];
+    // 关闭前保存未保存的修改（同步编辑器内容并写盘），避免进度丢失
+    if (closing.dirty) {
+      if (path === activeTab) closing.content = EditorMod.getValue();
+      try { api.writeFile(closing.path, closing.content); } catch {}
+    }
     tabs.splice(idx, 1);
     if (activeTab === path) {
       activeTab = tabs.length ? tabs[Math.max(0, idx - 1)].path : null;
@@ -636,13 +650,27 @@
 
   async function runLeetCodeTests() {
     if (!lcDir) { toast('请先打开一道题', 'err'); return; }
-    await saveActive(false); // 先把当前 Solution 存盘，测试文件从磁盘导入
+    await saveAllTabs(); // 保存所有未保存的修改（含 Solution），测试文件从磁盘读取
     toast('正在本地判题…');
     const r = await api.leetcodeRunTests(lcDir, lcLang);
     if (r && r.ok) {
       markCurrentTried();
       toast('判题结果已输出到终端窗口', 'ok');
     } else if (r && r.error) toast(r.error, 'err');
+  }
+
+  // 保存所有有未保存修改的标签页（防止判题/切换时进度丢失）
+  async function saveAllTabs() {
+    for (const t of tabs) {
+      if (!t.dirty) continue;
+      const content = t.path === activeTab ? EditorMod.getValue() : t.content;
+      try {
+        await api.writeFile(t.path, content);
+        t.content = content;
+        t.dirty = false;
+      } catch {}
+    }
+    renderTabs();
   }
 
   function markCurrentTried() {
