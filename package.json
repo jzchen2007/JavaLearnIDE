@@ -1,7 +1,7 @@
 {
   "name": "lite-code-ide",
   "productName": "轻量编程 IDE",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "description": "面向编程初学者的轻量级学习 IDE（Electron + Monaco + JDK javac / Python3）",
   "main": "main.js",
   "scripts": {

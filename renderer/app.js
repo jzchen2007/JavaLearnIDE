@@ -35,6 +35,8 @@
     }
     if (!lcLists.length) lcLists = [{ id: 'default', name: '默认题单', problems: [] }];
     if (lcActiveId == null || !lcLists.find((l) => l.id === lcActiveId)) lcActiveId = lcLists[0].id;
+    // 迁移：为旧题补 status（默认未做）
+    lcLists.forEach((l) => { l.problems = (l.problems || []).map((p) => ({ ...p, status: p.status || 'todo' })); });
     stats = app.stats || stats;
     document.body.classList.toggle('light', settings.theme === 'vs');
 
@@ -390,6 +392,13 @@
     $('btn-lc-rename-cancel').addEventListener('click', cancelRename);
     $('lc-rename-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmRename(); else if (e.key === 'Escape') cancelRename(); });
     $('lc-query').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); importLeetCode(); } });
+    // 题单右键菜单
+    $('lc-menu-passed').addEventListener('click', toggleLcPassed);
+    $('lc-menu-delete').addEventListener('click', askDeleteLcProblem);
+    document.addEventListener('click', (e) => { if (!e.target.closest('#lc-menu')) hideLcMenu(); });
+    // 删除确认弹窗
+    $('btn-lc-confirm-cancel').addEventListener('click', () => $('modal-lc-confirm').classList.add('hidden'));
+    $('btn-lc-confirm-ok').addEventListener('click', confirmDeleteLcProblem);
     // 双栏宽度可拖拽调节（仅 LeetCode 刷题时）
     let lcResizing = false, lcStartX = 0, lcStartW = 0;
     $('lc-resizer').addEventListener('mousedown', (e) => {
@@ -468,12 +477,13 @@
     renderLcLists();
     renderLcList();
   }
-  function deleteLcProblem(i) {
-    const list = getActiveList();
-    if (!list) return;
-    list.problems.splice(i, 1);
-    persistLists();
-    renderLcList();
+  function statusBadge(status) {
+    const map = {
+      todo: '<span class="lc-status todo">未做</span>',
+      tried: '<span class="lc-status tried">已尝试</span>',
+      passed: '<span class="lc-status passed">通过</span>'
+    };
+    return map[status] || map.todo;
   }
 
   function renderLcList() {
@@ -486,20 +496,57 @@
     el.innerHTML = list.problems.map((p, i) => {
       const diff = p.difficulty ? `<span class="lc-diff ${(p.difficulty || '').toLowerCase()}">${esc(DIFF_CN[p.difficulty] || p.difficulty)}</span>` : '';
       const lang = p.lang === 'python' ? '<span class="lang-badge py">Py3</span>' : '<span class="lang-badge java">Java</span>';
-      return `<div class="lc-item" data-i="${i}">${diff}<span class="lc-item-title">${esc(p.title)}</span>${lang}<button class="lc-del" title="删除" data-i="${i}">${ICON.svg('close')}</button></div>`;
+      return `<div class="lc-item" data-i="${i}">${diff}<span class="lc-item-title">${esc(p.title)}</span>${statusBadge(p.status)}${lang}</div>`;
     }).join('');
     el.querySelectorAll('.lc-item').forEach((it) => {
-      it.addEventListener('click', (ev) => {
-        if (ev.target.closest('.lc-del')) return;
-        openLeetCode(parseInt(it.dataset.i, 10));
-      });
+      it.addEventListener('click', () => openLeetCode(parseInt(it.dataset.i, 10)));
+      it.addEventListener('contextmenu', (ev) => { ev.preventDefault(); showLcMenu(ev, parseInt(it.dataset.i, 10)); });
     });
-    el.querySelectorAll('.lc-del').forEach((b) => {
-      b.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        deleteLcProblem(parseInt(b.dataset.i, 10));
-      });
-    });
+  }
+
+  function showLcMenu(ev, i) {
+    const list = getActiveList();
+    const p = list && list.problems[i];
+    if (!p) return;
+    lcMenuIdx = i;
+    $('lc-menu-passed').textContent = p.status === 'passed' ? '取消通过标记' : '标记为通过';
+    const menu = $('lc-menu');
+    menu.classList.remove('hidden');
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    let x = ev.clientX, y = ev.clientY;
+    if (x + mw > window.innerWidth - 8) x = window.innerWidth - mw - 8;
+    if (y + mh > window.innerHeight - 8) y = window.innerHeight - mh - 8;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+  }
+
+  function hideLcMenu() {
+    $('lc-menu').classList.add('hidden');
+  }
+
+  function toggleLcPassed() {
+    const list = getActiveList();
+    const p = list && list.problems[lcMenuIdx];
+    if (!p) return;
+    p.status = p.status === 'passed' ? 'tried' : 'passed';
+    persistLists();
+    renderLcList();
+    hideLcMenu();
+  }
+
+  function askDeleteLcProblem() {
+    lcConfirmIdx = lcMenuIdx;
+    hideLcMenu();
+    $('modal-lc-confirm').classList.remove('hidden');
+  }
+
+  function confirmDeleteLcProblem() {
+    const list = getActiveList();
+    if (list && lcConfirmIdx >= 0) list.problems.splice(lcConfirmIdx, 1);
+    $('modal-lc-confirm').classList.add('hidden');
+    persistLists();
+    renderLcList();
+    lcConfirmIdx = -1;
   }
 
   async function importLeetCode() {
@@ -516,7 +563,7 @@
     let added = 0;
     for (const p of r.problems || []) {
       if (existing.has(p.titleSlug)) continue;
-      list.problems.push(p); existing.add(p.titleSlug); added++;
+      list.problems.push({ ...p, status: 'todo' }); existing.add(p.titleSlug); added++;
     }
     if (added) { persistLists(); renderLcList(); }
     if (r.errors && r.errors.length) toast('部分题目导入失败：' + r.errors.join('；'), 'err');
@@ -533,6 +580,7 @@
     const r = await api.leetcodeOpen(p.titleSlug, p.lang);
     if (!r.ok) { toast(r.error || '打开失败', 'err'); return; }
     lcDir = r.dir; lcLang = p.lang;
+    lcCurListId = list.id; lcCurIdx = i;
     $('lc-panel-list').classList.add('hidden');
     $('lc-panel-detail').classList.remove('hidden');
     renderLcDetail(r);
@@ -591,14 +639,28 @@
     await saveActive(false); // 先把当前 Solution 存盘，测试文件从磁盘导入
     toast('正在本地判题…');
     const r = await api.leetcodeRunTests(lcDir, lcLang);
-    if (r && r.ok) toast('判题结果已输出到终端窗口', 'ok');
-    else if (r && r.error) toast(r.error, 'err');
+    if (r && r.ok) {
+      markCurrentTried();
+      toast('判题结果已输出到终端窗口', 'ok');
+    } else if (r && r.error) toast(r.error, 'err');
+  }
+
+  function markCurrentTried() {
+    const list = lcLists.find((l) => l.id === lcCurListId);
+    const p = list && list.problems[lcCurIdx];
+    if (p && p.status !== 'passed') {
+      p.status = 'tried';
+      persistLists();
+      renderLcList();
+    }
   }
 
   let currentView = 'explorer';
   let lcDir = null, lcLang = 'java'; // LeetCode 当前题目
   let lcLists = [];       // 题单列表 [{ id, name, problems }]
   let lcActiveId = null;  // 当前题单 id
+  let lcCurListId = null, lcCurIdx = -1; // 当前打开的题目标记
+  let lcMenuIdx = -1, lcConfirmIdx = -1; // 右键菜单/删除确认对应的题目下标
 
   function switchView(name, forceOpen) {
     const sidebar = $('sidebar');

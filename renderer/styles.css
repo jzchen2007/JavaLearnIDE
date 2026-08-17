@@ -473,6 +473,14 @@ body.lc-resizing * { cursor: col-resize !important; }
 .lc-diff.easy { background: rgba(137,209,133,.16); color: var(--ok); }
 .lc-diff.medium { background: rgba(204,167,0,.16); color: var(--warn); }
 .lc-diff.hard { background: rgba(241,76,76,.16); color: var(--error); }
+.lc-status { flex-shrink: 0; font-size: 10px; line-height: 1; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
+.lc-status.todo { background: rgba(128,128,128,.18); color: var(--text-dim); }
+.lc-status.tried { background: rgba(204,167,0,.16); color: var(--warn); }
+.lc-status.passed { background: rgba(137,209,133,.18); color: var(--ok); }
+#lc-menu { position: fixed; z-index: 300; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.35); padding: 4px; min-width: 130px; }
+.lc-menu-item { display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--text); cursor: pointer; padding: 7px 12px; border-radius: 4px; font-size: 12.5px; }
+.lc-menu-item:hover { background: var(--bg-hover); }
+#lc-menu-delete:hover { color: var(--error); }
 .lc-lists-bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px 4px; }
 .lc-lists-bar select { flex: 1; min-width: 0; padding: 5px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 13px; }
 .lc-lists-bar .mini-btn { flex-shrink: 0; }

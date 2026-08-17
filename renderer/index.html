@@ -331,7 +331,7 @@
             <path d="M40.5 21 49 32l-8.5 11" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h2>轻量编程 IDE <span class="ver">v2.7.0</span></h2>
+        <h2>轻量编程 IDE <span class="ver">v2.8.0</span></h2>
         <p>面向编程初学者的轻量级开发环境，基于 Electron + Monaco Editor 构建，支持 Java（JDK javac）与 Python 3 两种语言。</p>
         <p>功能：一键编译运行（外部独立终端）、Java + Python 双语言关键字中文词典、Tab 自动补全、实时错误波浪线、编译错误中文化、代码统计。</p>
       </div>
@@ -339,6 +339,28 @@
   </div>
 
   <div id="toast-container"></div>
+
+  <!-- 题单右键菜单 -->
+  <div id="lc-menu" class="hidden">
+    <button class="lc-menu-item" id="lc-menu-passed">标记为通过</button>
+    <button class="lc-menu-item" id="lc-menu-delete">删除</button>
+  </div>
+
+  <!-- 删除题目确认 -->
+  <div id="modal-lc-confirm" class="modal hidden">
+    <div class="modal-box small">
+      <div class="modal-head"><span>确认删除</span><button class="modal-close" data-close>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button></div>
+      <div class="modal-body">
+        <p style="line-height:1.8;">是否确认从题单中删除该题目？</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+          <button id="btn-lc-confirm-cancel" class="ghost">取消</button>
+          <button id="btn-lc-confirm-ok" class="lc-run">删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="../vendor/monaco/vs/loader.js"></script>
   <script src="icons.js"></script>
