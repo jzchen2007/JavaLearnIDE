@@ -57,8 +57,13 @@
         onCursor: (line, col) => { $('sb-lncol').textContent = `行 ${line}，列 ${col}`; }
       }).then(() => {
         EditorMod.applySettings(settings);
-        // 编辑器内容变化 → 统计行数 + 静默编译
+        // 编辑器内容变化 → 标记未保存 + 统计行数 + 静默编译
         EditorMod.getEditor().onDidChangeModelContent((e) => {
+          // 用户编辑（非程序 setValue）→ 标记当前标签为未保存
+          if (!suppressNextDiff && activeTab) {
+            const t = tabs.find((x) => x.path === activeTab);
+            if (t) t.dirty = true;
+          }
           const linesAdded = countAddedLines(e);
           if (linesAdded > 0 && !suppressNextDiff) {
             statsPendingLines += linesAdded;
@@ -168,6 +173,7 @@
     currentModel = t;
     renderTabs();
     if (!same) {
+      suppressNextDiff = true;
       EditorMod.setValue(t.content);
       EditorMod.setLanguage(langOf(path));
     }
@@ -218,8 +224,8 @@
     tabs.splice(idx, 1);
     if (activeTab === path) {
       activeTab = tabs.length ? tabs[Math.max(0, idx - 1)].path : null;
-      if (activeTab) { const t = tabs.find((x) => x.path === activeTab); EditorMod.setValue(t.content); EditorMod.setLanguage(langOf(activeTab)); EditorMod.clearMarkers(); }
-      else { EditorMod.setValue(''); EditorMod.setLanguage('java'); showWelcome(); }
+      if (activeTab) { const t = tabs.find((x) => x.path === activeTab); suppressNextDiff = true; EditorMod.setValue(t.content); EditorMod.setLanguage(langOf(activeTab)); EditorMod.clearMarkers(); }
+      else { suppressNextDiff = true; EditorMod.setValue(''); EditorMod.setLanguage('java'); showWelcome(); }
     }
     renderTabs();
     $('sb-file').textContent = activeTab || '未打开文件';
@@ -386,6 +392,11 @@
     $('set-aikey').addEventListener('change', (e) => api.setSettings({ aiApiKey: e.target.value.trim() }));
     $('set-aimodel').addEventListener('change', (e) => api.setSettings({ aiModel: e.target.value.trim() }));
     $('set-leetcode').addEventListener('change', (e) => api.setSettings({ leetcodeBaseUrl: e.target.value.trim() }));
+    $('set-leetcode-dir').addEventListener('change', (e) => api.setSettings({ leetcodeSaveDir: e.target.value.trim() || null }));
+    $('btn-leetcode-dir-browse').addEventListener('click', async () => {
+      const p = await window.api.pickFolder();
+      if (p) { $('set-leetcode-dir').value = p; api.setSettings({ leetcodeSaveDir: p }); }
+    });
     $('btn-jdk-browse').addEventListener('click', async () => {
       // 通过主进程对话框选择目录（复用 openFolderDialog 逻辑扩展：这里用系统对话框）
       const r = await window.api.openFolderDialog();
@@ -542,10 +553,12 @@
     const list = getActiveList();
     const p = list && list.problems[lcMenuIdx];
     if (!p) return;
-    p.status = p.status === 'passed' ? 'tried' : 'passed';
+    const nowPassed = p.status !== 'passed';
+    p.status = nowPassed ? 'passed' : 'tried';
     persistLists();
     renderLcList();
     hideLcMenu();
+    if (nowPassed) api.leetcodeExportSolution(p.titleSlug, p.lang); // 标记通过时导出题解
   }
 
   function askDeleteLcProblem() {
@@ -594,7 +607,7 @@
     const r = await api.leetcodeOpen(p.titleSlug, p.lang);
     if (!r.ok) { toast(r.error || '打开失败', 'err'); return; }
     lcDir = r.dir; lcLang = p.lang;
-    lcCurListId = list.id; lcCurIdx = i;
+    lcCurListId = list.id; lcCurIdx = i; lcCurSlug = p.titleSlug;
     $('lc-panel-list').classList.add('hidden');
     $('lc-panel-detail').classList.remove('hidden');
     renderLcDetail(r);
@@ -655,7 +668,8 @@
     const r = await api.leetcodeRunTests(lcDir, lcLang);
     if (r && r.ok) {
       markCurrentTried();
-      toast('判题结果已输出到终端窗口', 'ok');
+      const ex = await api.leetcodeExportSolution(lcCurSlug, lcLang);
+      toast(ex && ex.ok ? '判题完成；题解已保存：' + ex.path : '判题结果已输出到终端窗口', 'ok');
     } else if (r && r.error) toast(r.error, 'err');
   }
 
@@ -688,6 +702,7 @@
   let lcLists = [];       // 题单列表 [{ id, name, problems }]
   let lcActiveId = null;  // 当前题单 id
   let lcCurListId = null, lcCurIdx = -1; // 当前打开的题目标记
+  let lcCurSlug = null; // 当前打开的题目 slug（用于导出题解）
   let lcMenuIdx = -1, lcConfirmIdx = -1; // 右键菜单/删除确认对应的题目下标
 
   function switchView(name, forceOpen) {
@@ -768,6 +783,7 @@
     $('set-aikey').value = settings.aiApiKey || '';
     $('set-aimodel').value = settings.aiModel || '';
     $('set-leetcode').value = settings.leetcodeBaseUrl || 'https://leetcode.com';
+    $('set-leetcode-dir').value = settings.leetcodeSaveDir || '';
     openModal('modal-settings');
     updateJavaStatus();
     updatePythonStatus();
@@ -823,5 +839,7 @@
     setTimeout(() => el.remove(), 3000);
   }
 
+  // 供主进程判题前调用：保存所有未保存的标签
+  window.__appSaveAll = saveAllTabs;
   init();
 })();

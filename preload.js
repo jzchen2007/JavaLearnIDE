@@ -10,9 +10,11 @@ contextBridge.exposeInMainWorld('api', {
   leetcodeOpen: (slug, lang) => ipcRenderer.invoke('leetcode:open', { slug, lang }),
   leetcodeAddTestCase: (dir, tc) => ipcRenderer.invoke('leetcode:addTestCase', { dir, input: tc.input, expected: tc.expected }),
   leetcodeRunTests: (dir, lang) => ipcRenderer.invoke('leetcode:runTests', { dir, lang }),
+  leetcodeExportSolution: (slug, lang) => ipcRenderer.invoke('leetcode:exportSolution', { slug, lang }),
   // 文件
   openFileDialog: () => ipcRenderer.invoke('file:openDialog'),
   openFolderDialog: () => ipcRenderer.invoke('file:openFolderDialog'),
+  pickFolder: () => ipcRenderer.invoke('file:pickFolder'),
   pickExe: () => ipcRenderer.invoke('file:pickExe'),
   newFile: () => ipcRenderer.invoke('file:new'),
   readFile: (p) => ipcRenderer.invoke('file:read', p),

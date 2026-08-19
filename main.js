@@ -51,7 +51,8 @@ let settings = {
   aiBaseUrl: '',
   aiApiKey: '',
   aiModel: 'Qwen/Qwen2.5-7B-Instruct',
-  leetcodeBaseUrl: 'https://leetcode.cn'
+  leetcodeBaseUrl: 'https://leetcode.cn',
+  leetcodeSaveDir: '' // 用户指定的题解保存目录（留空=默认）
 };
 let stats = null;
 let settingsTimer = null, statsTimer = null;
@@ -597,8 +598,15 @@ async function handlePetAction(action) {
     }
     case 'judge': {
       if (!currentLeetCode) return { ok: false, text: '还没有打开 LeetCode 题目哦～先在「刷题」里选一题吧' };
+      // 判题前先让主窗口保存所有未保存的标签（含 Solution），确保跑的是最新代码
+      try {
+        if (mainWin && !mainWin.isDestroyed()) await mainWin.webContents.executeJavaScript('window.__appSaveAll ? window.__appSaveAll() : null');
+      } catch {}
       const res = await runLeetCodeTests(currentLeetCode.dir, currentLeetCode.lang);
-      return res.ok ? { ok: true, text: '判题完成，请看终端窗口～' } : { ok: false, text: '判题失败，请查看问题面板～' };
+      if (res.ok) {
+        try { await leetcodeExportSolution(currentLeetCode.problem.titleSlug, currentLeetCode.lang); } catch {}
+      }
+      return res.ok ? { ok: true, text: '判题完成，题解已保存～' } : { ok: false, text: '判题失败，请查看问题面板～' };
     }
     default: return { ok: false, text: '未知指令' };
   }
@@ -967,6 +975,32 @@ function leetcodeAddTestCase(dir, tc) {
   fs.writeFileSync(pjPath, JSON.stringify(pj, null, 2), 'utf8');
   writeLeetCodeTest(dir, pj, pj.testcases);
   return { ok: true, testcases: pj.testcases };
+}
+
+// 导出题解到用户指定目录（文件名：题号-中文标题.ext），方便下次查看
+async function leetcodeExportSolution(slug, lang) {
+  const saveDir = settings.leetcodeSaveDir || path.join(os.homedir(), 'LiteCodeIDE', 'leetcode');
+  try { fs.mkdirSync(saveDir, { recursive: true }); } catch {}
+  const solName = lang === 'python' ? 'solution.py' : 'Solution.java';
+  const baseDir = projectRoot || path.join(os.homedir(), 'LiteCodeIDE', 'leetcode');
+  const solPath = path.join(baseDir, slug, solName);
+  if (!fs.existsSync(solPath)) return { ok: false, error: '未找到题解文件' };
+  let title = slug;
+  try {
+    const pj = JSON.parse(fs.readFileSync(path.join(baseDir, slug, 'problem.json'), 'utf8'));
+    if (pj.title) title = pj.title;
+  } catch {}
+  let id = '';
+  try {
+    const list = await leetcodeProblemList();
+    const found = list.find((p) => p.slug === slug);
+    if (found) id = String(found.id);
+  } catch {}
+  const safe = String(title).replace(/[\\/:*?"<>|\r\n]/g, '').trim() || 'solution';
+  const ext = lang === 'python' ? '.py' : '.java';
+  const out = path.join(saveDir, (id ? id + '-' : '') + safe + ext);
+  try { fs.copyFileSync(solPath, out); } catch (e) { return { ok: false, error: '保存失败：' + e.message }; }
+  return { ok: true, path: out };
 }
 
 async function runLeetCodeTests(dir, lang) {
@@ -1381,6 +1415,7 @@ function registerIpc() {
   ipcMain.handle('leetcode:open', async (_e, { slug, lang }) => await leetcodeOpen(slug, lang));
   ipcMain.handle('leetcode:addTestCase', (_e, { dir, input, expected }) => leetcodeAddTestCase(dir, { input, expected }));
   ipcMain.handle('leetcode:runTests', async (_e, { dir, lang }) => await runLeetCodeTests(dir, lang));
+  ipcMain.handle('leetcode:exportSolution', async (_e, { slug, lang }) => await leetcodeExportSolution(slug, lang));
 
   ipcMain.handle('file:openDialog', async () => {
     const r = await dialog.showOpenDialog(mainWin, {
@@ -1394,6 +1429,11 @@ function registerIpc() {
     if (!projectRoot) projectRoot = path.dirname(p);
     addRecent(p);
     return { path: p, content: fs.readFileSync(p, 'utf8'), projectRoot, lang: langFor(p) };
+  });
+
+  ipcMain.handle('file:pickFolder', async () => {
+    const r = await dialog.showOpenDialog(mainWin, { title: '选择文件夹', properties: ['openDirectory'] });
+    return r.canceled ? null : r.filePaths[0];
   });
 
   ipcMain.handle('file:pickExe', async () => {
